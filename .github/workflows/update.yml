@@ -20,6 +20,8 @@ on:
   push:
     paths:
       - "inbox/**"
+      - "site/index.html"
+      - "pipeline/**"
 
 permissions:
   contents: write
