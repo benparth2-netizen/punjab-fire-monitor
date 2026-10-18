@@ -1,0 +1,610 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<title>Punjab Farm Fire Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a printed field bulletin. Ruled masthead, a brief of four figures, map beside a district list, then the detail sections in one reading column. Single deliberate light look. */
+:root{
+  color-scheme:light;
+  --paper:#f5f1e8; --paper-2:#ece5d6; --ink:#1c232c; --ink-2:#56606b; --rule:#cfc6b4;
+  --straw-1:#efe3c2; --straw-2:#dfc382; --straw-3:#c49a3c; --straw-4:#9a7220; --straw-0:#f8f4ea;
+  --fire:#b02a1c; --cool:#2f5d7c;
+  --serif:"Newsreader",Georgia,"Times New Roman",serif;
+  --sans:"Public Sans",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
+.wrap{max-width:1200px;margin:0 auto;padding-inline:20px;padding-block:28px 56px}
+.mast{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px 24px;border-bottom:2px solid var(--ink);padding-bottom:12px}
+.mast h1{font-family:var(--serif);font-weight:600;font-size:clamp(28px,4vw,40px);line-height:1.05;margin:0;letter-spacing:-.01em}
+.mast .src{font-size:13px;color:var(--ink-2)}
+.mast .right{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+button{font:inherit;font-size:13px;color:var(--ink);background:transparent;border:1px solid var(--ink);padding:6px 12px;cursor:pointer}
+button:hover{background:var(--ink);color:var(--paper)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--fire);outline-offset:2px}
+.addnote{font-size:13px;background:var(--paper-2);padding:10px 14px;margin-top:10px}
+
+.brief{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-bottom:1px solid var(--rule)}
+.fig{padding:16px 20px 18px 0;min-width:0}
+.fig+.fig{border-left:1px solid var(--rule);padding-left:20px}
+.lab{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-2)}
+.num{font-family:var(--serif);font-weight:500;font-size:46px;line-height:1.1;font-variant-numeric:lining-nums tabular-nums}
+.sub{font-size:13px;color:var(--ink-2)}
+.worse{color:var(--fire)} .better{color:var(--cool)}
+
+.main{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:40px;margin-top:26px}
+h2{font-family:var(--serif);font-weight:500;font-size:22px;margin:0;text-wrap:balance}
+.head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.toggle{display:inline-flex;border:1px solid var(--ink)}
+.toggle button{border:0;padding:5px 10px}
+.toggle button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.mapbox{background:var(--paper-2);position:relative}
+#map{display:block;width:100%;height:auto}
+.mapmsg{position:absolute;left:50%;top:6%;transform:translateX(-50%);max-width:80%;text-align:center;font-size:13px;color:var(--ink);background:var(--paper);border:1px solid var(--rule);padding:6px 12px}
+.qd .qb .qtog{color:var(--ink-2);font-size:13px;margin-top:2px}
+.qmore{display:inline}
+.ctrl{display:flex;align-items:center;gap:12px;margin-top:10px}
+.ctrl input{flex:1;min-width:0;accent-color:var(--fire)}
+.ctrl .d{font-family:var(--serif);font-size:17px;min-width:64px;text-align:right}
+.legend{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:12px;color:var(--ink-2);margin-top:8px}
+.sw{display:inline-block;width:22px;height:9px;vertical-align:middle;margin-right:4px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--fire);vertical-align:middle;margin-right:5px}
+
+.top5{list-style:none;margin:0;padding:0}
+.top5 li{display:grid;grid-template-columns:24px minmax(0,1fr) 120px 40px;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--rule)}
+.top5 .bd{font-size:12px;color:var(--ink-2);margin-left:6px}
+.top5 .r{font-family:var(--serif);color:var(--ink-2)}
+.top5 .n{font-family:var(--serif);font-size:20px;text-align:right;font-variant-numeric:tabular-nums}
+.bar{height:8px;background:var(--straw-3)}
+.note{font-size:13px;color:var(--ink-2);margin:10px 0 0;max-width:68ch}
+
+section.more{margin-top:44px;padding-top:16px;border-top:2px solid var(--ink)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:40px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th{text-align:left;font-weight:500;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);padding:8px 10px;border-bottom:1px solid var(--ink)}
+td{padding:9px 10px;border-bottom:1px solid var(--rule);white-space:nowrap}
+td.rk{font-family:var(--serif);font-size:18px;width:44px}
+.r{text-align:right}
+svg text{font-family:var(--sans);font-size:11px;fill:var(--ink-2)}
+svg .strong{fill:var(--ink);font-weight:600}
+footer{margin-top:44px;padding-top:12px;border-top:1px solid var(--rule);font-size:12px;color:var(--ink-2);max-width:90ch}
+.dp-back{border:0;padding:0;color:var(--ink-2);font-size:13px;margin-bottom:8px}
+.dp-back:hover{background:transparent;color:var(--ink);text-decoration:underline}
+.dp-figs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);margin:10px 0 22px}
+.dp-figs .fig{padding:12px 12px 12px 0}.dp-figs .fig+.fig{padding-left:12px}
+.dp-figs .num{font-size:32px}
+#dpanel h3{font-family:var(--serif);font-weight:500;font-size:17px;margin:0 0 6px}
+#dpanel table{margin-bottom:22px}
+#dpanel tr.sel td{background:var(--paper-2);font-weight:600}
+#dpanel a{color:var(--cool)}
+.dl{margin:0 0 18px;background:var(--ink);color:var(--paper)}
+.dl:hover{background:var(--fire);border-color:var(--fire)}
+.dlmsg{font-size:13px;color:var(--ink-2);margin:-10px 0 16px}
+.mxwrap{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:32px;align-items:start}
+.qd{padding:10px 0;border-bottom:1px solid var(--rule)}
+.qd:first-child{border-top:1px solid var(--rule)}
+.qd .qt{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px}
+.qd .qs{font-size:12px;color:var(--ink-2);margin:2px 0 4px}
+.qd .qb{font-size:14px}
+.qd .qb button{border:0;padding:0;font-size:14px;color:var(--cool);text-decoration:underline;background:none}
+.qd .qb button:hover{color:var(--fire);background:none}
+.sw2{display:inline-block;width:10px;height:10px;border-radius:50%}
+#mx .bub{cursor:pointer}
+@media (max-width:860px){.mxwrap{grid-template-columns:minmax(0,1fr)}}
+.hint{font-size:12px;color:var(--ink-2);margin-top:4px}
+#map .fdot{cursor:pointer}#map .fdot:focus{outline:none;stroke:var(--ink);stroke-width:2.5}
+#map path.dist{cursor:pointer}
+@media (max-width:860px){
+  .brief{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .fig:nth-child(3){border-left:0;padding-left:0}
+  .fig:nth-child(n+3){border-top:1px solid var(--rule)}
+  .main{grid-template-columns:minmax(0,1fr)}
+  .num{font-size:38px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <h1>Punjab Farm Fire Monitor</h1>
+  </header>
+
+  <div class="brief" id="brief"></div>
+
+  <div class="main">
+    <div>
+      <div class="head">
+        <h2>Fire map</h2>
+        <div class="toggle" role="group" aria-label="Map view">
+          <button type="button" id="vDay" aria-pressed="false">This day</button>
+          <button type="button" id="vSeason" aria-pressed="true">Season to date</button>
+        </div>
+      </div>
+      <div class="mapbox"><svg id="map" role="img" aria-label="Map of Punjab districts with fire locations"></svg><div class="mapmsg" id="mapMsg" hidden></div></div>
+      <div class="ctrl">
+        <button type="button" id="play" aria-label="Play the season">▶ Play</button>
+        <input type="range" id="day" min="0" max="22" value="22" aria-label="Date">
+        <span class="d" id="dayLbl">07 Oct</span>
+      </div>
+      <div class="legend" id="legend"></div>
+      <p class="hint">Click a fire or a district to see block-level detail.</p>
+    </div>
+    <div id="rightCol">
+     <div id="dpanel" hidden aria-live="polite"></div>
+     <div id="overview">
+      <div class="head"><h2 id="topH">Top 5 districts this season</h2>
+        <div class="toggle" role="group" aria-label="Rank by">
+          <button type="button" id="tDist" aria-pressed="true">Districts</button>
+          <button type="button" id="tBlock" aria-pressed="false">Blocks</button>
+        </div>
+      </div>
+      <ol class="top5" id="top5"></ol>
+      <p class="note" id="top5note"></p>
+      <div class="head" style="margin-top:30px"><h2>Last 7 days</h2><span class="sub" id="wk"></span></div>
+      <svg id="week" viewBox="0 0 440 210" width="100%" role="img" aria-label="Daily fires over the last 7 days"></svg>
+     </div>
+    </div>
+  </div>
+
+  <section class="more">
+    <div class="two">
+      <div>
+        <div class="head"><h2>Season race: 2026 vs 2025</h2></div>
+        <svg id="race" viewBox="0 0 560 300" width="100%" role="img" aria-label="Cumulative fires by date, 2026 and 2025"></svg>
+      </div>
+      <div>
+        <div class="head"><h2>Fire intensity · <span id="intDate">07 Oct</span></h2></div>
+        <svg id="int" viewBox="0 0 560 300" width="100%" role="img" aria-label="Fire power of each fire detected on the selected date"></svg>
+        <p class="note">Fire power (W/m²) of each detected fire. Higher values usually mean more residue burning at once.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="more" aria-labelledby="rankH">
+    <div class="head"><h2 id="rankH">District ranking compared with this date in 2025</h2><span class="sub" id="rankSub"></span></div>
+    <div class="scroll"><table id="rank"></table></div>
+    <p class="note">Districts with no fires are not ranked. Below the top few, most districts have one or two fires, so a single fire can move a rank several places.</p>
+  </section>
+
+  <section class="more" aria-labelledby="mxH">
+    <div class="head"><h2 id="mxH">Block priority matrix</h2><span class="sub" id="mxSub"></span></div>
+    <div class="mxwrap">
+      <svg id="mx" viewBox="0 0 640 400" width="100%" role="img" aria-label="Blocks plotted by number of fires and fire power per fire"></svg>
+      <div id="mxSide"></div>
+    </div>
+  </section>
+
+  <section class="more" aria-labelledby="listH">
+    <div class="head"><h2 id="listH">Fires detected · <span id="listDate">07 Oct</span></h2>
+      <label class="sub">District <select id="fDist"></select></label></div>
+    <div class="scroll"><table id="list"></table></div>
+  </section>
+
+  <footer>Source: CREAMS Lab, ICAR-IARI, Paddy Residue Burning Bulletins.</footer>
+</div>
+
+<script>
+const EMBED = null;
+(EMBED ? Promise.resolve(EMBED) : fetch("data/dashboard.json",{cache:"no-store"}).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}))
+.then(D=>{
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const NS="http://www.w3.org/2000/svg";
+const el=(t,a={},p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e};
+const daily=D.daily, last=daily.length-1, LOADED=last;
+/* fires = every fire record loaded (season); firesOn(i) = fires for one date in the season table */
+const fires=(D.fires||[]).map(f=>f.d?f:{...f,d:daily[last].d});
+const DAYS=new Set(D.fireDays||[daily[last].d]);
+const hasDay=i=>DAYS.has(daily[i].d), firesOn=i=>fires.filter(f=>f.d===daily[i].d);
+const COMPLETE=!(D.missing&&D.missing.length);
+const lastLbl=daily[last].d.replace("-"," ");
+const Y=["2025","2026"];
+const cum=y=>{let s=0;return daily.map(r=>s+=r.v[y])};
+const C25=cum("2025"), C26=cum("2026");
+const distRows=D.dist.filter(r=>r.n!=="TOTAL");
+const pct=(a,b)=>b?Math.round((a/b-1)*100):null;
+const title=s=>s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()).replace("Sas Nagar (Mohali)","SAS Nagar (Mohali)").replace("Sbs Nagar","SBS Nagar");
+
+/* Daily brief */
+(function(){
+  const t=daily[last].v["2026"], y=daily[last-1].v["2026"], s26=C26[last], s25=C25[last], p=pct(s26,s25);
+  const b={};firesOn(last).forEach(f=>{const k=f.dist+"|"+f.block;b[k]=b[k]||{n:0,d:f.dist,bl:f.block};b[k].n++});
+  const vals=Object.values(b), mx=vals.length?Math.max(...vals.map(v=>v.n)):0;
+  const tops=vals.filter(v=>v.n===mx);
+  const topTxt=tops.length?tops.slice(0,2).map(v=>title(v.bl)).join(" and ")+", "+title(tops[0].d)+(tops.length>2?` and ${tops.length-2} more`:""):"No fires today";
+  const diff=t-y;
+  const figs=[
+    ["Fires today",t,`<span class="${diff>0?"worse":"better"}">${diff>0?"+":""}${diff}</span> vs yesterday (${y})`],
+    ["Season to date",s26,`15 Sep to ${lastLbl} 2026`],
+    ["Vs 2025, same dates",`<span class="${p>0?"worse":"better"}">${p>0?"+":""}${p}%</span>`,`${s25} fires by this date in 2025`],
+    ["Top block today",mx,`${topTxt}`]
+  ];
+  document.getElementById("brief").innerHTML=figs.map(([l,n,s])=>`<div class="fig"><div class="lab">${l}</div><div class="num">${n}</div><div class="sub">${s}</div></div>`).join("");
+})();
+
+/* Map */
+const map=document.getElementById("map");
+map.setAttribute("viewBox",`0 0 ${D.proj.W} ${D.proj.H}`);
+const P=D.proj, proj=(lo,la)=>[P.ox+(lo-P.minx)*P.k*P.s, P.oy+(P.maxy-la)*P.s];
+const c26={};distRows.forEach(r=>c26[r.n]=r.v[6]);
+const shade=v=>!v?css("--straw-0"):v<5?css("--straw-1"):v<20?css("--straw-2"):v<50?css("--straw-3"):css("--straw-4");
+let mode="season", playing=null, selDist=null, selBlock=null;
+function drawMap(){
+  map.innerHTML="";
+  const idx=+document.getElementById("day").value, have=hasDay(idx);
+  const season=mode==="season";
+  D.map.forEach(m=>{
+    const v=c26[m.key]||0;
+    const fill=season?shade(v):css("--straw-0");
+    const p=el("path",{d:m.d,fill,stroke:css("--ink"),"stroke-width":0.8,"stroke-linejoin":"round",class:"dist"},map);
+    el("title",{},p).textContent=`${m.name}: ${v} fires this season. Click for block detail`;
+    p.addEventListener("click",()=>openDist(m.key,null));
+  });
+  const sm=selDist&&D.map.find(m=>m.key===selDist);
+  if(sm)el("path",{d:sm.d,fill:"none",stroke:css("--ink"),"stroke-width":2.6,"stroke-linejoin":"round","pointer-events":"none"},map);
+  const msg=document.getElementById("mapMsg");
+  if(have){
+    msg.hidden=true;
+    /* Dots are clipped to the Punjab outline so no marker spills across the international border */
+    const cp=el("clipPath",{id:"pbClip"},el("defs",{},map));
+    D.map.forEach(m=>el("path",{d:m.d},cp));
+    const dg=el("g",{"clip-path":"url(#pbClip)"},map);
+    firesOn(idx).forEach(f=>{const [x,y]=proj(f.lon,f.lat);
+      const c=el("circle",{cx:x.toFixed(1),cy:y.toFixed(1),r:(3.5+Math.sqrt(f.frp)*1.5).toFixed(1),fill:css("--fire"),"fill-opacity":selDist&&f.dist!==selDist?.35:.85,stroke:"#fff","stroke-width":.8,class:"fdot",tabindex:0,role:"button","aria-label":`Fire in ${title(f.block)} block, ${title(f.dist)}. Open block detail`},dg);
+      el("title",{},c).textContent=`${title(f.block)}, ${title(f.dist)} · ${f.frp} W/m². Click for block detail`;
+      const go=()=>openDist(f.dist,f.block);
+      c.addEventListener("click",e=>{e.stopPropagation();go()});
+      c.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}})});
+    el("path",{d:D.outline,fill:"none",stroke:css("--ink"),"stroke-width":1,"stroke-linejoin":"round","pointer-events":"none"},map);
+  } else {
+    msg.hidden=false;
+    msg.textContent=`${daily[idx].v["2026"]} fires detected on ${daily[idx].d}. Locations appear when that day's bulletin is added.`;
+  }
+  /* Labels: sizes and positions are pre-fitted inside each district; narrow ones use a short leader line */
+  D.map.forEach(m=>{
+    const v=c26[m.key]||0, hot=season&&v>0, L=m.lab;
+    const halo={stroke:css("--paper"),"stroke-width":3,"paint-order":"stroke","stroke-linejoin":"round","pointer-events":"none"};
+    if(L.lines.length){
+      const lines=[...L.lines];
+      const lh=L.fs*1.15, y0=L.y-(lines.length-1)*lh/2+L.fs*0.35;
+      const t=el("text",{x:L.x,y:y0,"text-anchor":"middle","font-size":L.fs,...halo},map);
+      lines.forEach((s,i)=>{const ts=el("tspan",{x:L.x,y:(y0+i*lh).toFixed(1)},t);ts.textContent=s});
+    }
+    (m.lead||[]).forEach((q,j)=>{
+      el("line",{x1:q.px,y1:q.py,x2:q.x+(q.anchor==="start"?-3:0),y2:q.y+(q.anchor==="start"?-3:(q.y<q.py?3:-q.fs)),stroke:css("--ink-2"),"stroke-width":.8,"pointer-events":"none"},map);
+      el("circle",{cx:q.px,cy:q.py,r:1.6,fill:css("--ink-2"),"pointer-events":"none"},map);
+      const t=el("text",{x:q.x,y:q.y,"text-anchor":q.anchor,"font-size":q.fs,...halo},map);
+      t.textContent=m.name;
+    });
+  });
+  document.getElementById("dayLbl").textContent=daily[idx].d;
+  const lg=document.getElementById("legend");
+  lg.innerHTML=(season?`<span>Fires this season, by district:</span>`+[["--straw-0","0"],["--straw-1","1 to 4"],["--straw-2","5 to 19"],["--straw-3","20 to 49"],["--straw-4","50+"]].map(([c,t])=>`<span><i class="sw" style="background:var(${c})"></i>${t}</span>`).join(""):"")+`<span><i class="dot"></i>Fire detected on the selected date (larger = more intense)</span>`;
+}
+function setMode(m){mode=m;document.getElementById("vDay").setAttribute("aria-pressed",m==="day");document.getElementById("vSeason").setAttribute("aria-pressed",m==="season");drawMap()}
+document.getElementById("vDay").onclick=()=>setMode("day");
+document.getElementById("vSeason").onclick=()=>setMode("season");
+const slider=document.getElementById("day");
+slider.addEventListener("input",()=>{drawMap();sync()});
+document.getElementById("play").onclick=()=>{
+  const btn=document.getElementById("play");
+  if(playing){clearInterval(playing);playing=null;btn.textContent="▶ Play";return}
+  slider.value=0;drawMap();sync();btn.textContent="❚❚ Pause";
+  playing=setInterval(()=>{const v=+slider.value;if(v>=last){clearInterval(playing);playing=null;btn.textContent="▶ Play";return}slider.value=v+1;drawMap();sync()},450);
+};
+
+/* District panel: opens from a fire dot or a district */
+const dpanel=document.getElementById("dpanel"), overview=document.getElementById("overview");
+function openDist(key,block){selDist=key;selBlock=block;drawMap();renderDist();
+  if(window.innerWidth<=860)dpanel.scrollIntoView({behavior:"smooth",block:"start"})}
+function closeDist(){selDist=null;selBlock=null;dpanel.hidden=true;overview.hidden=false;drawMap()}
+function renderDist(){
+  if(!selDist){dpanel.hidden=true;overview.hidden=false;return}
+  const idx=+slider.value, lbl=daily[idx].d, have=hasDay(idx);
+  const name=(D.map.find(m=>m.key===selDist)||{}).name||title(selDist);
+  const row=distRows.find(r=>r.n===selDist)||{v:[0,0,0,0,0,0,0]};
+  const fs=have?firesOn(idx).filter(f=>f.dist===selDist):[];
+  const s26=row.v[6], s25=row.v[5], p=pct(s26,s25);
+  const dd=s26-s25, cls=dd>0?"worse":dd<0?"better":"";
+  const vs=s25>=10?`<span class="${cls}">${p>0?"+":""}${p}%</span>`:`<span class="${cls}">${dd>0?"+":""}${dd}</span>`;
+  const vsLab=s25>=10?"Vs 2025":"Vs 2025 (fires)";
+  const b={};fs.forEach(f=>{const k=f.block;b[k]=b[k]||{n:0,mx:0};b[k].n++;b[k].mx=Math.max(b[k].mx,f.frp)});
+  const blocks=Object.entries(b).sort((x,y)=>y[1].n-x[1].n||y[1].mx-x[1].mx);
+  let h=`<button type="button" class="dp-back" id="dpBack">← All districts</button>
+  <div class="head"><h2>${name}</h2><span class="sub">Block detail · ${lbl}</span></div>
+  <div class="dp-figs">
+    <div class="fig"><div class="lab">Fires on ${lbl}</div><div class="num">${have?fs.length:"–"}</div></div>
+    <div class="fig"><div class="lab">Season to date</div><div class="num">${s26}</div></div>
+  </div>`;
+  if(!have){h+=`<p class="note">Block detail for ${lbl} appears when that day's bulletin is added.</p>`}
+  else if(!fs.length){h+=`<p class="note">No fires detected in ${name} on ${lbl}.${s26?` ${s26} fire${s26>1?"s":""} so far this season; block detail for earlier dates appears as those bulletins are added.`:""}</p>`}
+  else{
+    h+=`<button type="button" class="dl" id="dlBtn" hidden>Download district report (PDF)</button><p class="dlmsg" id="dlMsg" hidden></p>`;
+    const list=[...fs].sort((x,y)=>(y.block===selBlock)-(x.block===selBlock)||x.block.localeCompare(y.block)||y.frp-x.frp);
+    h+=`<h3>Each fire, for field verification</h3><table><tr><th>Block</th><th class="r">Fire power</th><th>Location</th></tr>`+
+      list.map(f=>`<tr class="${f.block===selBlock?"sel":""}"><td>${title(f.block)}</td><td class="r">${f.frp.toFixed(1)}</td><td><a href="https://www.google.com/maps?q=${f.lat},${f.lon}" target="_blank" rel="noopener">Open in Google Maps</a></td></tr>`).join("")+`</table>`;
+  }
+  dpanel.innerHTML=h;dpanel.hidden=false;overview.hidden=true;
+  document.getElementById("dpBack").onclick=closeDist;
+  const btn=document.getElementById("dlBtn");
+  if(btn){dlReady.then(ok=>{if(ok&&document.getElementById("dlBtn")===btn)btn.hidden=false});
+    btn.onclick=()=>downloadReport(selDist,+slider.value)}
+}
+
+/* District field report (PDF), built in the browser from the loaded bulletin */
+const JSPDF_URL="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+let dlCap=null;
+/* Inside claude.ai the file is offered through the downloads capability; on a plain web host a normal browser download is used */
+const dlReady=(window.claude&&typeof window.claude.use==="function")
+  ? window.claude.use("downloads").then(c=>{dlCap=c;return !!c}).catch(()=>false)
+  : Promise.resolve(true);
+function loadJsPDF(){
+  if(window.jspdf)return Promise.resolve(window.jspdf);
+  return new Promise((res,rej)=>{const s=document.createElement("script");s.src=JSPDF_URL;s.onload=()=>res(window.jspdf);s.onerror=()=>rej(new Error("load"));document.head.appendChild(s)});
+}
+const fullDate=d=>d.replace("-"," ")+" 2026";
+function hexRGB(h){h=h.replace("#","");return [0,2,4].map(i=>parseInt(h.substr(i,2),16))}
+async function buildReport(key,idx){
+  const {jsPDF}=await loadJsPDF();
+  const doc=new jsPDF({unit:"mm",format:"a4"});
+  const INK=hexRGB(css("--ink")),INK2=hexRGB(css("--ink-2")),RULE=hexRGB(css("--rule")),FIRE=hexRGB(css("--fire")),COOL=hexRGB(css("--cool")),PAPER=hexRGB(css("--paper")),STRAW=hexRGB(css("--straw-1"));
+  const m=D.map.find(x=>x.key===key), name=m.name, date=fullDate(daily[idx].d);
+  const fs=firesOn(idx).filter(f=>f.dist===key);
+  const season=c26[key]||0;
+  const g={};fs.forEach(f=>{(g[f.block]=g[f.block]||[]).push(f)});
+  const blocks=Object.entries(g).sort((a,b)=>b[1].length-a[1].length||a[0].localeCompare(b[0]));
+  const rows=[];blocks.forEach(([,l])=>[...l].sort((a,b)=>b.frp-a.frp).forEach(f=>rows.push(f)));
+  const L=12,R=198;
+  const now=new Date(),gen=now.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+  /* Masthead */
+  doc.setFont("helvetica","normal");doc.setFontSize(7.5);doc.setTextColor(...INK2);
+  doc.text("PUNJAB FARM FIRE MONITOR  \u00b7  DISTRICT FIELD REPORT",L,16,{charSpace:.35});
+  doc.setFont("times","bold");doc.setFontSize(24);doc.setTextColor(...INK);doc.text(name,L,26);
+  doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(...INK2);
+  doc.text("Fires detected on "+date,R,21,{align:"right"});doc.text("Generated "+gen,R,25.5,{align:"right"});
+  doc.setDrawColor(...INK);doc.setLineWidth(.6);doc.line(L,29,R,29);
+  /* District map: outline scaled into a box, fires numbered to match the table */
+  const bx=L,by=35,bw=70,bh=66;
+  doc.setFillColor(...PAPER);doc.rect(bx,by,bw,bh,"F");
+  const rings=m.d.split("M").filter(Boolean).map(s=>s.replace(/Z/g,"").split("L").map(p=>p.split(",").map(Number)));
+  const all=rings.flat(),xs=all.map(p=>p[0]),ys=all.map(p=>p[1]);
+  const mnx=Math.min(...xs),mxx=Math.max(...xs),mny=Math.min(...ys),mxy=Math.max(...ys);
+  const sc=Math.min((bw-8)/(mxx-mnx),(bh-8)/(mxy-mny)),ox=bx+(bw-(mxx-mnx)*sc)/2,oy=by+(bh-(mxy-mny)*sc)/2;
+  const tp=([x,y])=>[ox+(x-mnx)*sc,oy+(y-mny)*sc];
+  const ringPath=(r,style)=>{const p=r.map(tp);const d=p.slice(1).map((q,i)=>[q[0]-p[i][0],q[1]-p[i][1]]);doc.lines(d,p[0][0],p[0][1],[1,1],style,true)};
+  doc.setFillColor(...STRAW);doc.setDrawColor(...INK);doc.setLineWidth(.3);
+  rings.forEach(r=>ringPath(r,"FD"));
+  const pos=rows.map(f=>{const [x,y]=proj(f.lon,f.lat);return tp([x,y])});
+  const rr=2.1,minD=rr*2.3;
+  for(let it=0;it<60;it++)for(let a=0;a<pos.length;a++)for(let b=a+1;b<pos.length;b++){
+    let dx=pos[b][0]-pos[a][0],dy=pos[b][1]-pos[a][1],dd=Math.hypot(dx,dy);
+    if(dd<minD){if(dd<.01){dx=1;dy=0;dd=1}const s=(minD-dd)/2/dd;pos[a][0]-=dx*s;pos[a][1]-=dy*s;pos[b][0]+=dx*s;pos[b][1]+=dy*s}}
+  doc.saveGraphicsState();rings.forEach(r=>ringPath(r,null));doc.clip();doc.discardPath();
+  rows.forEach((f,i)=>{const [x,y]=pos[i];doc.setFillColor(...FIRE);doc.setDrawColor(255,255,255);doc.setLineWidth(.25);doc.circle(x,y,rr,"FD");
+    doc.setFont("helvetica","bold");doc.setFontSize(6);doc.setTextColor(255,255,255);doc.text(String(i+1),x,y+.75,{align:"center"})});
+  doc.restoreGraphicsState();
+  doc.setDrawColor(...INK);doc.setLineWidth(.3);rings.forEach(r=>ringPath(r,"S"));
+  /* Figures */
+  const fx=92;
+  doc.setDrawColor(...RULE);doc.setLineWidth(.25);doc.line(fx,35,R,35);doc.line(fx,55,R,55);doc.line(fx+53,35,fx+53,55);
+  doc.setFont("helvetica","normal");doc.setFontSize(7.5);doc.setTextColor(...INK2);
+  doc.text(("FIRES ON "+daily[idx].d.replace("-"," ")).toUpperCase(),fx,40,{charSpace:.3});doc.text("SEASON TO DATE",fx+56,40,{charSpace:.3});
+  doc.setFont("times","normal");doc.setFontSize(26);doc.setTextColor(...INK);doc.text(String(rows.length),fx,51);doc.text(String(season),fx+56,51);
+  doc.setFont("times","bold");doc.setFontSize(13);doc.text("Blocks with fires",fx,65);
+  doc.setFont("helvetica","normal");doc.setFontSize(10);
+  doc.text(doc.splitTextToSize(blocks.map(([b,l])=>`${title(b)} (${l.length})`).join("  \u00b7  "),R-fx),fx,72,{lineHeightFactor:1.5});
+  /* Fire table */
+  let y=112;
+  const cols={no:L,blk:L+9,pw:122,loc:128};
+  const head=()=>{doc.setFont("times","bold");doc.setFontSize(13);doc.setTextColor(...INK);doc.text("Fires detected",L,y);y+=7;
+    doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(...INK2);
+    doc.text("#",cols.no,y,{charSpace:.3});doc.text("BLOCK",cols.blk,y,{charSpace:.3});doc.text("FIRE POWER",cols.pw,y,{align:"right",charSpace:.3});doc.text("LOCATION",cols.loc,y,{charSpace:.3});
+    y+=2;doc.setDrawColor(...INK);doc.setLineWidth(.35);doc.line(L,y,R,y);y+=5.5};
+  head();
+  rows.forEach((f,i)=>{
+    if(y>276){doc.addPage();y=18;head()}
+    doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(...FIRE);doc.text(String(i+1),cols.no,y);
+    doc.setFont("helvetica","normal");doc.setTextColor(...INK);doc.text(title(f.block),cols.blk,y);
+    doc.text(f.frp.toFixed(1),cols.pw-(f.frp>=10?11:0),y,{align:"right"});
+    if(f.frp>=10){doc.setFillColor(...FIRE);doc.rect(cols.pw-9.5,y-3,9.5,3.8,"F");doc.setFont("helvetica","bold");doc.setFontSize(6.5);doc.setTextColor(255,255,255);doc.text("High",cols.pw-4.75,y-.3,{align:"center"})}
+    doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...COOL);
+    doc.textWithLink("Open map",cols.loc,y,{url:`https://www.google.com/maps?q=${f.lat},${f.lon}`});
+    const w=doc.getTextWidth("Open map");doc.setDrawColor(...COOL);doc.setLineWidth(.2);doc.line(cols.loc,y+.7,cols.loc+w,y+.7);
+    doc.setFontSize(7.5);doc.setTextColor(...INK2);doc.text(`${f.lat.toFixed(5)}, ${f.lon.toFixed(5)}`,cols.loc,y+4);
+    y+=6.5;doc.setDrawColor(...RULE);doc.setLineWidth(.25);doc.line(L,y,R,y);y+=5.5;
+  });
+  /* Source */
+  if(y>280){doc.addPage();y=18}
+  y+=2;doc.setDrawColor(...RULE);doc.line(L,y,R,y);y+=4;
+  doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(...INK2);
+  doc.text(doc.splitTextToSize(`Source: CREAMS Lab, ICAR-IARI, paddy residue burning bulletin for ${date}. Locations are satellite detections (VIIRS / MODIS); please confirm each fire on the ground. Fire power marked High where 10 or above.`,R-L),L,y);
+  return {blob:doc.output("blob"),filename:`${name.replace(/[^A-Za-z]+/g,"_")}_Fire_Report_${daily[idx].d.replace("-","")}2026.pdf`};
+}
+async function downloadReport(key,idx){
+  const btn=document.getElementById("dlBtn"),msg=document.getElementById("dlMsg");
+  const say=t=>{if(msg){msg.textContent=t;msg.hidden=!t}};
+  btn.disabled=true;say("Preparing report...");
+  try{
+    const {blob,filename}=await buildReport(key,idx);
+    if(dlCap){await dlCap.save({filename,data:blob});say("")}
+    else{const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);say("")}
+  }catch(e){
+    const c=e&&e.code;
+    if(c==="declined")say("");
+    else if(c==="rate_limited")say("A download prompt is already open.");
+    else if(c&&c!=="bad_request"){say("Downloads aren't available in this view.");btn.hidden=true}
+    else say("The report could not be created. Please try again.");
+  }finally{btn.disabled=false}
+}
+
+/* Top 5: districts or blocks */
+function renderTop(kind){
+  document.getElementById("tDist").setAttribute("aria-pressed",kind==="dist");
+  document.getElementById("tBlock").setAttribute("aria-pressed",kind==="block");
+  const tot=C26[last];
+  let rows,note;
+  if(kind==="dist"){
+    rows=[...distRows].filter(d=>d.v[6]>0).map(d=>({name:title(d.n),sub:"",n:d.v[6]}));
+  } else {
+    /* Block counts come from the fire-by-fire tables, so they cover only the bulletins loaded so far */
+    const b={};fires.forEach(f=>{const k=f.dist+"|"+f.block;b[k]=b[k]||{name:title(f.block),sub:title(f.dist),n:0};b[k].n++});
+    rows=Object.values(b);
+  }
+  rows.sort((a,b)=>b.n-a.n||a.name.localeCompare(b.name));
+  rows.forEach((r,i)=>r.rk=i&&r.n===rows[i-1].n?rows[i-1].rk:i+1);
+  const top=rows.slice(0,5), mx=top.length?top[0].n:1;
+  if(top.length<2){document.getElementById("top5").innerHTML=top.map(d=>`<li><span class="r">1</span><span>${d.name}</span><span></span><span class="n">${d.n}</span></li>`).join("");document.getElementById("top5note").textContent="";return}
+  document.getElementById("topH").textContent=kind==="dist"?"Top 5 districts this season":(COMPLETE?"Top 5 blocks this season":"Top 5 blocks");
+  document.getElementById("top5").innerHTML=top.map(d=>`<li><span class="r">${d.rk}</span><span>${d.name}${d.sub?`<span class="bd">${d.sub}</span>`:""}</span><span><div class="bar" style="width:${Math.max(3,d.n/mx*100)}%"></div></span><span class="n">${d.n}</span></li>`).join("");
+  if(kind==="dist"){
+    note=`${top[0].name} and ${top[1].name} account for ${Math.round((top[0].n+top[1].n)/tot*100)}% of the ${tot} fires so far.`;
+  } else {
+    const n=fires.length, t2=top[0].n+top[1].n;
+    note=COMPLETE?`${top[0].name} and ${top[1].name} account for ${Math.round(t2/n*100)}% of the ${n} fires this season.`
+      :`${top[0].name} and ${top[1].name} account for ${Math.round(t2/n*100)}% of the ${n} fires in the ${DAYS.size} daily bulletins loaded so far.`;
+  }
+  document.getElementById("top5note").textContent=note;
+}
+document.getElementById("tDist").onclick=()=>renderTop("dist");
+document.getElementById("tBlock").onclick=()=>renderTop("block");
+renderTop("dist");
+
+/* Block priority matrix: x = number of fires, y = average fire power per fire, bubble area = total fire power (fires x average) */
+(function(){
+  const s=document.getElementById("mx"),W=640,H=400,m={l:46,r:16,t:16,b:44};
+  const b={};fires.forEach(f=>{const k=f.dist+"|"+f.block;b[k]=b[k]||{dist:f.dist,block:f.block,n:0,tot:0};b[k].n++;b[k].tot+=f.frp});
+  const B=Object.values(b);B.forEach(d=>d.avg=d.tot/d.n);
+  if(!B.length){s.innerHTML="";return}
+  /* Splits: intensity uses the dashboard's fixed "High" mark (fire power 10+); "many fires" means more than the average block with fires */
+  const HI=10, mN=B.reduce((a,d)=>a+d.n,0)/B.length, mI=HI;
+  const Q=d=>(d.avg>=HI?"h":"l")+(d.n>mN?"m":"f");
+  const QD={hm:{t:"High intensity, many fires",c:css("--fire")},
+            hf:{t:"High intensity, few fires",c:css("--straw-4")},
+            lm:{t:"Low intensity, many fires",c:css("--straw-3")},
+            lf:{t:"Low intensity, few fires",c:css("--straw-2")}};
+  const xMax=Math.max(4,Math.max(...B.map(d=>d.n))+1), yMax=Math.max(5,Math.ceil(Math.max(...B.map(d=>d.avg))*1.1/5)*5);
+  const x=v=>m.l+v*(W-m.l-m.r)/xMax, y=v=>H-m.b-v*(H-m.t-m.b)/yMax;
+  const xs=Math.max(1,Math.ceil(xMax/8));
+  for(let v=0;v<=xMax;v+=xs){el("text",{x:x(v),y:H-m.b+16,"text-anchor":"middle"},s).textContent=v}
+  for(let v=0;v<=yMax;v+=5){el("line",{x1:m.l,x2:W-m.r,y1:y(v),y2:y(v),stroke:css("--rule")},s);el("text",{x:m.l-8,y:y(v)+4,"text-anchor":"end"},s).textContent=v}
+  el("line",{x1:m.l,x2:W-m.r,y1:y(0),y2:y(0),stroke:css("--ink-2")},s);
+  el("text",{x:(m.l+W-m.r)/2,y:H-6,"text-anchor":"middle",class:"strong"},s).textContent="Number of fires";
+  el("text",{x:14,y:(m.t+H-m.b)/2,"text-anchor":"middle",class:"strong",transform:`rotate(-90 14 ${(m.t+H-m.b)/2})`},s).textContent="Fire power per fire (average)";
+  /* Median split lines */
+  el("line",{x1:x(mN),x2:x(mN),y1:m.t,y2:H-m.b,stroke:css("--ink"),"stroke-dasharray":"4 4","stroke-width":1},s);
+  el("line",{x1:m.l,x2:W-m.r,y1:y(mI),y2:y(mI),stroke:css("--ink"),"stroke-dasharray":"4 4","stroke-width":1},s);
+  const ql=(tx,ty,anc,k)=>{const e=el("text",{x:tx,y:ty,"text-anchor":anc,style:`fill:${k==="hm"?QD[k].c:css("--ink-2")};font-weight:600;font-size:12px`},s);e.textContent=QD[k].t};
+  ql(x(mN)-8,m.t+14,"end","hf");ql(W-m.r-4,m.t+14,"end","hm");ql(x(mN)-8,y(mI)+16,"end","lf");ql(W-m.r-4,y(mI)+16,"end","lm");
+  /* Bubbles: blocks with the same count can sit on top of each other, so overlapping bubbles are
+     nudged sideways a little (never more than a third of one fire step) */
+  const rad=d=>4+Math.sqrt(d.tot)*2.6, step=x(1)-x(0);
+  const placed=[];
+  [...B].sort((p,q)=>q.tot-p.tot).forEach(d=>{
+    const r=rad(d), py=y(d.avg); let px=x(d.n);
+    const clash=cx=>placed.some(o=>Math.hypot(o.px-cx,o.py-py)<(o.r+r)*.75);
+    for(const k of [0,1,-1,2,-2,3,-3]){const cx=x(d.n)+k*Math.min(r*.9,step/9);if(!clash(cx)){px=cx;break}}
+    placed.push({d,px,py,r});
+  });
+  placed.forEach(({d,px,py,r})=>{
+    const c=el("circle",{cx:px.toFixed(1),cy:py.toFixed(1),r:r.toFixed(1),fill:QD[Q(d)].c,"fill-opacity":.78,stroke:"#fff","stroke-width":1.2,class:"bub",tabindex:0,role:"button","aria-label":`${title(d.block)}, ${title(d.dist)}. Open block detail`},s);
+    el("title",{},c).textContent=`${title(d.block)}, ${title(d.dist)}: ${d.n} fire${d.n>1?"s":""}, average fire power ${d.avg.toFixed(1)}, total ${d.tot.toFixed(1)}`;
+    const go=()=>{openDist(d.dist,d.block);document.getElementById("map").scrollIntoView({behavior:"smooth",block:"start"})};
+    c.addEventListener("click",go);c.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}});
+  });
+  /* Labels: the biggest bubbles (and every high-intensity, many-fires block) get a name, placed
+     right, left, above or below wherever it does not collide; the rest show on hover */
+  const boxes=placed.map(p=>({x1:p.px-p.r,x2:p.px+p.r,y1:p.py-p.r,y2:p.py+p.r}));
+  const hit=b=>b.x1<m.l||b.x2>W-m.r||b.y1<m.t||b.y2>H-m.b||boxes.some(o=>b.x1<o.x2&&b.x2>o.x1&&b.y1<o.y2&&b.y2>o.y1);
+  const want=placed.filter((p,i)=>i<10||Q(p.d)==="hm");
+  want.forEach(p=>{
+    const txt=title(p.d.block), w=txt.length*6.1, h=12;
+    const opts=[[p.px+p.r+4,p.py-h/2,"start"],[p.px-p.r-4-w,p.py-h/2,"start"],[p.px-w/2,p.py-p.r-3-h,"start"],[p.px-w/2,p.py+p.r+3,"start"]];
+    for(const [bx,by] of opts){const b={x1:bx,x2:bx+w,y1:by,y2:by+h};if(!hit(b)){boxes.push(b);
+      const e=el("text",{x:bx.toFixed(1),y:(by+h-2).toFixed(1),stroke:css("--paper"),"stroke-width":3,"paint-order":"stroke","pointer-events":"none"},s);e.textContent=txt;break}}
+  });
+  /* Side summary: biggest blocks first; long lists fold after 8 */
+  document.getElementById("mxSide").innerHTML=["hm","hf","lm","lf"].map(k=>{
+    const list=B.filter(d=>Q(d)===k).sort((p,q)=>q.tot-p.tot);
+    const item=d=>`<button type="button" data-d="${d.dist}" data-b="${d.block}">${title(d.block)}</button> <span class="sub">${title(d.dist)}</span>`;
+    const more=list.length>8?`<div class="qmore" hidden>${list.slice(8).map(item).join("<br>")}</div><button type="button" class="qtog">+ ${list.length-8} more</button>`:"";
+    return `<div class="qd"><div class="qt"><span class="sw2" style="background:${QD[k].c}"></span>${QD[k].t}</div><div class="qb">${list.length?list.slice(0,8).map(item).join("<br>")+more:`<span class="sub">None</span>`}</div></div>`}).join("");
+  document.querySelectorAll("#mxSide .qtog").forEach(bt=>bt.onclick=()=>{const mo=bt.previousElementSibling;mo.hidden=!mo.hidden;bt.textContent=mo.hidden?`+ ${mo.querySelectorAll("button").length} more`:"Show fewer"});
+  document.querySelectorAll("#mxSide button[data-d]").forEach(bt=>bt.onclick=()=>{openDist(bt.dataset.d,bt.dataset.b);document.getElementById("map").scrollIntoView({behavior:"smooth",block:"start"})});
+  document.getElementById("mxSub").textContent=COMPLETE?`${B.length} blocks with fires · 15 Sep to ${lastLbl}`:`${B.length} blocks with fires · ${DAYS.size} daily bulletin${DAYS.size>1?"s":""} loaded`;
+  /* explanatory note removed at review */ void `Bubble size shows total fire power (number of fires × fire power per fire). Dashed lines: fire power of 10 or more counts as high intensity (the same "High" mark used elsewhere on the dashboard); more fires than the average block (${mN.toFixed(1)}) counts as many. Click a bubble or name to see its fires. Covers the bulletins loaded so far; season totals by block build up as each daily bulletin is added.`;
+})();
+
+document.getElementById("rankSub").textContent=`15 Sep to ${lastLbl}, same dates each year`;
+slider.max=last;slider.value=last;
+/* Ranking */
+(function(){
+  const rk=i=>{const s=distRows.filter(d=>d.v[i]>0).sort((a,b)=>b.v[i]-a.v[i]||a.n.localeCompare(b.n));const m={};s.forEach((d,j)=>m[d.n]=j+1);return m};
+  const r26=rk(6), r25=rk(5);
+  const rows=distRows.filter(d=>d.v[6]>0).sort((a,b)=>r26[a.n]-r26[b.n]).slice(0,10);
+  let h=`<tr><th>Rank</th><th>District</th><th class="r">Fires 2026</th><th>Vs 2025</th><th class="r">2025 rank (fires)</th></tr>`;
+  rows.forEach(d=>{const a=r25[d.n],b=r26[d.n];
+    const mv=a==null?`<span class="sub">New this year</span>`:a>b?`<span class="worse">▲ Up ${a-b}</span>`:a<b?`<span class="better">▼ Down ${b-a}</span>`:`<span class="sub">No change</span>`;
+    h+=`<tr><td class="rk">${b}</td><td>${title(d.n)}</td><td class="r">${d.v[6]}</td><td>${mv}</td><td class="r">${a?a+" ("+d.v[5]+")":"No fires (0)"}</td></tr>`});
+  document.getElementById("rank").innerHTML=h;
+})();
+
+/* Last 7 days */
+(function(){
+  const s=document.getElementById("week"),W=440,H=210,m={l:28,r:6,t:18,b:26};
+  const days=daily.slice(-7);const a=days.map(r=>r.v["2026"]);
+  const mx=Math.max(5,...a);const step=Math.max(1,Math.ceil(mx/4));const yMax=step*Math.ceil(mx/step);
+  const y=v=>H-m.b-v*(H-m.t-m.b)/yMax, gw=(W-m.l-m.r)/7, bw=Math.min(26,gw*0.5);
+  for(let v=0;v<=yMax;v+=step){el("line",{x1:m.l,x2:W-m.r,y1:y(v),y2:y(v),stroke:css("--rule")},s);el("text",{x:m.l-6,y:y(v)+4,"text-anchor":"end"},s).textContent=v}
+  days.forEach((r,i)=>{const cx=m.l+gw*i+gw/2;
+    const r26=el("rect",{x:cx-bw/2,y:y(a[i]),width:bw,height:y(0)-y(a[i]),fill:css("--fire")},s);el("title",{},r26).textContent=`${r.d}: ${a[i]} fires`;
+    el("text",{x:cx,y:y(a[i])-4,"text-anchor":"middle",class:"strong"},s).textContent=a[i];
+    el("text",{x:cx,y:H-8,"text-anchor":"middle"},s).textContent=r.d});
+  const sa=a.reduce((p,c)=>p+c,0);
+  document.getElementById("wk").textContent=`${sa} fires, ${days[0].d} to ${days[6].d}`;
+})();
+
+/* Season race */
+(function(){
+  const s=document.getElementById("race");const W=560,H=300,m={l:40,r:84,t:12,b:28};
+  const mx=Math.max(C25[last],C26[last]);const yMax=Math.ceil(mx/25)*25;
+  const x=i=>m.l+i*(W-m.l-m.r)/last, y=v=>H-m.b-v*(H-m.t-m.b)/yMax;
+  for(let v=0;v<=yMax;v+=25){el("line",{x1:m.l,x2:W-m.r,y1:y(v),y2:y(v),stroke:css("--rule")},s);el("text",{x:m.l-6,y:y(v)+4,"text-anchor":"end"},s).textContent=v}
+  [0,7,15,last].forEach(i=>el("text",{x:x(i),y:H-8,"text-anchor":"middle"},s).textContent=daily[i].d);
+  [[C25,css("--ink-2"),"2025",2],[C26,css("--fire"),"2026",3]].forEach(([c,col,lab,w])=>{
+    el("path",{d:c.map((v,i)=>(i?"L":"M")+x(i).toFixed(1)+","+y(v).toFixed(1)).join(""),fill:"none",stroke:col,"stroke-width":w},s);
+    el("circle",{cx:x(last),cy:y(c[last]),r:4,fill:col},s);
+  });
+  const a=y(C26[last]),b=y(C25[last]);const off=Math.abs(a-b)<16?(a<b?-8:8):0;
+  el("text",{x:x(last)+8,y:a+4+off,class:"strong",style:`fill:${css("--fire")}`},s).textContent=`2026 · ${C26[last]}`;
+  el("text",{x:x(last)+8,y:b+4-off,class:"strong"},s).textContent=`2025 · ${C25[last]}`;
+})();
+
+/* Intensity + list (selected day) */
+function sync(){
+  renderDist();
+  const idx=+slider.value, lbl=daily[idx].d, have=hasDay(idx);
+  document.getElementById("intDate").textContent=lbl;document.getElementById("listDate").textContent=lbl;
+  const s=document.getElementById("int");s.innerHTML="";
+  if(!have){el("text",{x:280,y:150,"text-anchor":"middle"},s).textContent="Loads when this day's bulletin is added";}
+  else{
+    const W=560,H=300,m={l:36,r:10,t:12,b:30};const f=[...firesOn(idx)].sort((a,b)=>a.frp-b.frp);
+    if(!f.length){el("text",{x:280,y:150,"text-anchor":"middle"},s).textContent=`No fires detected on ${lbl}`}else{
+    const mx=Math.ceil(Math.max(...f.map(d=>d.frp))/5)*5;const bw=(W-m.l-m.r)/f.length;const y=v=>H-m.b-v*(H-m.t-m.b)/mx;
+    for(let v=0;v<=mx;v+=5){el("line",{x1:m.l,x2:W-m.r,y1:y(v),y2:y(v),stroke:css("--rule")},s);el("text",{x:m.l-6,y:y(v)+4,"text-anchor":"end"},s).textContent=v}
+    f.forEach((d,i)=>{const r=el("rect",{x:m.l+i*bw+2,y:y(d.frp),width:bw-4,height:y(0)-y(d.frp),fill:d.frp>=10?css("--fire"):css("--straw-3")},s);el("title",{},r).textContent=`${title(d.block)}, ${title(d.dist)}: ${d.frp} W/m²`});
+    el("text",{x:(W+m.l)/2,y:H-8,"text-anchor":"middle"},s).textContent=`Each bar is one fire (${f.length}), sorted by fire power`;}
+  }
+  const sel=document.getElementById("fDist");
+  const rows=have?firesOn(idx):[];
+  const ds=[...new Set(rows.map(f=>f.dist))];const cur=sel.value;
+  sel.innerHTML=`<option value="">All (${rows.length})</option>`+ds.map(d=>`<option value="${d}">${title(d)}</option>`).join("");
+  if(ds.includes(cur))sel.value=cur;
+  const v=sel.value, r=rows.filter(f=>!v||f.dist===v);
+  document.getElementById("list").innerHTML=have?`<tr><th>District</th><th>Block</th><th>GPS coordinates</th><th class="r">Fire power (W/m²)</th></tr>`+r.map(f=>`<tr><td>${title(f.dist)}</td><td>${title(f.block)}</td><td><a href="https://www.google.com/maps?q=${f.lat},${f.lon}" target="_blank" rel="noopener" style="color:var(--cool)">${f.lat.toFixed(5)}, ${f.lon.toFixed(5)}</a></td><td class="r">${f.frp.toFixed(1)}</td></tr>`).join(""):`<tr><td class="sub">Fire details for ${lbl} appear when that day's bulletin is added.</td></tr>`;
+}
+document.getElementById("fDist").addEventListener("change",sync);
+drawMap();sync();
+}).catch(()=>{document.querySelector(".wrap").insertAdjacentHTML("afterbegin",'<p class="note">The latest data could not be loaded. Please refresh the page.</p>')});
+</script>
+
+</body></html>

@@ -1,0 +1,75 @@
+# Fetches new CREAMS paddy-fire bulletins, reads the Punjab tables, checks them,
+# and republishes the dashboard on GitHub Pages.
+#
+# Runs automatically three times a day, and on demand from the Actions tab
+# ("Update dashboard" > "Run workflow"). Uploading a bulletin PDF into the inbox/
+# folder also triggers it (manual fallback if the CREAMS site cannot be reached).
+name: Update dashboard
+
+on:
+  schedule:
+    - cron: "30 3 * * *"    # 09:00 IST
+    - cron: "30 8 * * *"    # 14:00 IST
+    - cron: "30 15 * * *"   # 21:00 IST
+  workflow_dispatch:
+    inputs:
+      redo:
+        description: "Re-read every bulletin from scratch"
+        type: boolean
+        default: false
+  push:
+    paths:
+      - "inbox/**"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: update-dashboard
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PDF reader
+        run: sudo apt-get update -q && sudo apt-get install -y -q poppler-utils
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch and read new bulletins
+        run: python pipeline/fetch.py ${{ inputs.redo && '--redo' || '' }}
+
+      - name: Build dashboard data
+        run: python pipeline/build.py
+
+      - name: Save data to the repository
+        run: |
+          git config user.name "dashboard-bot"
+          git config user.email "dashboard-bot@users.noreply.github.com"
+          git add -A data site/data inbox
+          git diff --cached --quiet && echo "No new data" || git commit -m "Data update $(date -u +'%Y-%m-%d %H:%M') UTC"
+          git push
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: Flag bulletins that failed the checks
+        if: hashFiles('fetch_failures.txt') != ''
+        run: |
+          echo "::error::Some bulletins were not loaded. The dashboard was published without them."
+          cat fetch_failures.txt
+          exit 1

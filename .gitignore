@@ -1,0 +1,3 @@
+fetch_failures.txt
+__pycache__/
+*.pyc
