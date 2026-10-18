@@ -10,10 +10,13 @@
 import glob
 import json
 import os
+import sys
 from collections import Counter
 from datetime import datetime, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "pipeline"))
+from read_bulletin import district_name  # noqa: E402
 
 
 def build():
@@ -27,7 +30,11 @@ def build():
     prev = None
     for b in bulletins:
         for f in b["fires"]:
+            f["dist"] = district_name(f["dist"])
             fires.append({**f, "d": b["d"]})
+        known = {r["n"] for r in b["dist"]}
+        for n in sorted({f["dist"] for f in b["fires"]} - known):
+            warnings.append(f'{b["d"]}: fire list names district "{n}", which is not in the district table')
         consecutive = prev is not None and (
             datetime.fromisoformat(b["date"]) - datetime.fromisoformat(prev["date"])).days == 1
         if consecutive:

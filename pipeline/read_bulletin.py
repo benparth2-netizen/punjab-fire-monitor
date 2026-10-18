@@ -19,6 +19,19 @@ FIRE_ROW = re.compile(
 )
 
 
+# The fire list sometimes spells a district differently from the district table.
+DISTRICT_ALIASES = {
+    "SAS NAGAR": "SAS NAGAR (MOHALI)", "S.A.S NAGAR": "SAS NAGAR (MOHALI)", "S.A.S. NAGAR": "SAS NAGAR (MOHALI)",
+    "MOHALI": "SAS NAGAR (MOHALI)", "SRI MUKTSAR SAHIB": "MUKTSAR", "SHRI MUKTSAR SAHIB": "MUKTSAR",
+    "NAWANSHAHR": "SBS NAGAR", "SHAHID BHAGAT SINGH NAGAR": "SBS NAGAR", "FEROZEPUR": "FIROZPUR",
+}
+
+
+def district_name(n):
+    n = " ".join(n.upper().split())
+    return DISTRICT_ALIASES.get(n, n)
+
+
 class BulletinError(Exception):
     pass
 
@@ -104,7 +117,7 @@ def read_fires(lines):
         m = FIRE_ROW.match(line)
         if m:
             fires.append({
-                "dist": m.group(2).strip(), "block": m.group(3).strip(), "sat": m.group(4),
+                "dist": district_name(m.group(2)), "block": m.group(3).strip(), "sat": m.group(4),
                 "lat": float(m.group(5)), "lon": float(m.group(6)), "t": m.group(7),
                 "dn": m.group(8), "frp": float(m.group(9)),
             })
