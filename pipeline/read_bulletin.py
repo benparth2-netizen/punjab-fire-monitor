@@ -97,7 +97,7 @@ def read_districts(lines):
 def read_fires(lines):
     i = find(lines, r"Details of paddy residue burning events in Punjab on")
     if i < 0:
-        raise BulletinError("Punjab fire-by-fire table not found")
+        return None  # no Punjab table: normal on a day with zero Punjab fires
     end = find(lines, r"Details of paddy residue burning events in (?!Punjab)", i + 1)
     fires = []
     for line in lines[i + 1:(end if end > 0 else len(lines))]:
@@ -120,6 +120,12 @@ def read_bulletin(path):
     stated = read_highlight(lines, date)
     day_key = date.strftime("%d-%b")
     table_today = next((r["v"]["2026"] for r in daily if r["d"] == day_key), None)
+    if fires is None:
+        if table_today == 0:
+            fires = []  # zero-fire day: CREAMS leaves out the Punjab fire list
+        else:
+            raise BulletinError(f"Bulletin {no} ({date}): Punjab fire-by-fire table not found, "
+                                f"but the date-wise table shows {table_today} fires")
 
     # Checks: every count for the day must agree before the bulletin is accepted.
     problems = []
