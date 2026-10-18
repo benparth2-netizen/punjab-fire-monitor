@@ -8,7 +8,7 @@
   color-scheme:light;
   --paper:#f5f1e8; --paper-2:#ece5d6; --ink:#1c232c; --ink-2:#56606b; --rule:#cfc6b4;
   --straw-1:#efe3c2; --straw-2:#dfc382; --straw-3:#c49a3c; --straw-4:#9a7220; --straw-0:#f8f4ea;
-  --fire:#b02a1c; --cool:#2f5d7c;
+  --fire:#b02a1c; --ember:#d9825b; --cool:#2f5d7c;
   --serif:"Newsreader",Georgia,"Times New Roman",serif;
   --sans:"Public Sans",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
 }
@@ -196,6 +196,9 @@ const daily=D.daily, last=daily.length-1, LOADED=last;
 const fires=(D.fires||[]).map(f=>f.d?f:{...f,d:daily[last].d});
 const DAYS=new Set(D.fireDays||[daily[last].d]);
 const hasDay=i=>DAYS.has(daily[i].d), firesOn=i=>fires.filter(f=>f.d===daily[i].d);
+const DI={};daily.forEach((r,i)=>DI[r.d]=i);fires.forEach(f=>f.di=DI[f.d]??last);
+/* Season to date up to a chosen day: every fire from 15 Sep to that day */
+const firesUpTo=i=>fires.filter(f=>f.di<=i);
 const COMPLETE=!(D.missing&&D.missing.length);
 const lastLbl=daily[last].d.replace("-"," ");
 const Y=["2025","2026"];
@@ -233,8 +236,10 @@ function drawMap(){
   map.innerHTML="";
   const idx=+document.getElementById("day").value, have=hasDay(idx);
   const season=mode==="season";
+  /* Season shading counts fires up to the selected day (on the latest day this equals the CREAMS district total) */
+  const cum={};if(season)firesUpTo(idx).forEach(f=>cum[f.dist]=(cum[f.dist]||0)+1);
   D.map.forEach(m=>{
-    const v=c26[m.key]||0;
+    const v=idx===last?(c26[m.key]||0):(cum[m.key]||0);
     const fill=season?shade(v):css("--straw-0");
     const p=el("path",{d:m.d,fill,stroke:css("--ink"),"stroke-width":0.8,"stroke-linejoin":"round",class:"dist"},map);
     el("title",{},p).textContent=`${m.name}: ${v} fires this season. Click for block detail`;
@@ -243,15 +248,18 @@ function drawMap(){
   const sm=selDist&&D.map.find(m=>m.key===selDist);
   if(sm)el("path",{d:sm.d,fill:"none",stroke:css("--ink"),"stroke-width":2.6,"stroke-linejoin":"round","pointer-events":"none"},map);
   const msg=document.getElementById("mapMsg");
-  if(have){
-    msg.hidden=true;
+  if(have||season){
+    msg.hidden=have;
+    if(!have)msg.textContent=`${daily[idx].v["2026"]} fires detected on ${daily[idx].d}; their locations are not loaded yet.`;
     /* Dots are clipped to the Punjab outline so no marker spills across the international border */
     const cp=el("clipPath",{id:"pbClip"},el("defs",{},map));
     D.map.forEach(m=>el("path",{d:m.d},cp));
     const dg=el("g",{"clip-path":"url(#pbClip)"},map);
-    firesOn(idx).forEach(f=>{const [x,y]=proj(f.lon,f.lat);
-      const c=el("circle",{cx:x.toFixed(1),cy:y.toFixed(1),r:(3.5+Math.sqrt(f.frp)*1.5).toFixed(1),fill:css("--fire"),"fill-opacity":selDist&&f.dist!==selDist?.35:.85,stroke:"#fff","stroke-width":.8,class:"fdot",tabindex:0,role:"button","aria-label":`Fire in ${title(f.block)} block, ${title(f.dist)}. Open block detail`},dg);
-      el("title",{},c).textContent=`${title(f.block)}, ${title(f.dist)} · ${f.frp} W/m². Click for block detail`;
+    /* This day: that day's fires. Season to date: earlier fires in a lighter shade, the selected day's on top */
+    const pts=season?[...firesUpTo(idx)].sort((a,b)=>a.di-b.di):firesOn(idx);
+    pts.forEach(f=>{const [x,y]=proj(f.lon,f.lat), today=f.di===idx, dim=selDist&&f.dist!==selDist;
+      const c=el("circle",{cx:x.toFixed(1),cy:y.toFixed(1),r:((today?3.5:2.6)+Math.sqrt(f.frp)*(today?1.5:1.1)).toFixed(1),fill:today?css("--fire"):css("--ember"),"fill-opacity":today?(dim?.35:.85):(dim?.25:.6),stroke:"#fff","stroke-width":today?.8:.4,class:"fdot",tabindex:0,role:"button","aria-label":`Fire in ${title(f.block)} block, ${title(f.dist)}, ${f.d}. Open block detail`},dg);
+      el("title",{},c).textContent=`${title(f.block)}, ${title(f.dist)} · ${f.d} · ${f.frp} W/m². Click for block detail`;
       const go=()=>openDist(f.dist,f.block);
       c.addEventListener("click",e=>{e.stopPropagation();go()});
       c.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}})});
@@ -279,7 +287,7 @@ function drawMap(){
   });
   document.getElementById("dayLbl").textContent=daily[idx].d;
   const lg=document.getElementById("legend");
-  lg.innerHTML=(season?`<span>Fires this season, by district:</span>`+[["--straw-0","0"],["--straw-1","1 to 4"],["--straw-2","5 to 19"],["--straw-3","20 to 49"],["--straw-4","50+"]].map(([c,t])=>`<span><i class="sw" style="background:var(${c})"></i>${t}</span>`).join(""):"")+`<span><i class="dot"></i>Fire detected on the selected date (larger = more intense)</span>`;
+  lg.innerHTML=(season?`<span>Fires this season, by district:</span>`+[["--straw-0","0"],["--straw-1","1 to 4"],["--straw-2","5 to 19"],["--straw-3","20 to 49"],["--straw-4","50+"]].map(([c,t])=>`<span><i class="sw" style="background:var(${c})"></i>${t}</span>`).join(""):"")+`<span><i class="dot"></i>Fire on the selected date (larger = more intense)</span>`+(season?`<span><i class="dot" style="background:var(--ember);opacity:.6"></i>Earlier fires this season</span>`:"");
 }
 function setMode(m){mode=m;document.getElementById("vDay").setAttribute("aria-pressed",m==="day");document.getElementById("vSeason").setAttribute("aria-pressed",m==="season");drawMap()}
 document.getElementById("vDay").onclick=()=>setMode("day");
