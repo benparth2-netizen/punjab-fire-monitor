@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 from datetime import date, timedelta
 
@@ -77,7 +78,7 @@ def candidate_urls():
         for href in re.findall(r'href="([^"]*Fire_bulletin_2026r/[^"]*Rice[^"]*\.pdf)"', html):
             m = re.search(r"_(\d\d[A-Z][a-z]{2})_2026", href)
             if m:
-                urls[m.group(1)] = href
+                urls[m.group(1)] = urllib.parse.urljoin(LISTING, href.strip())
     except Exception as e:
         print(f"::warning::Listing page not reachable ({e}); using file name pattern only")
     d, n = SEASON_START, 1
