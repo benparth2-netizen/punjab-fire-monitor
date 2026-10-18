@@ -37,12 +37,12 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install PDF reader
-        run: sudo apt-get update -q && sudo apt-get install -y -q poppler-utils
+        run: sudo apt-get update -q && sudo apt-get install -y -q poppler-utils curl
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 

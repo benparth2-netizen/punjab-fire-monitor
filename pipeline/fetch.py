@@ -7,8 +7,11 @@ Run: python pipeline/fetch.py            (new bulletins only)
 """
 import glob
 import json
+import shutil
+import ssl
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import time
@@ -26,20 +29,44 @@ SEASON_START, SEASON_END = date(2026, 9, 15), date(2026, 11, 30)
 UA = {"User-Agent": "Mozilla/5.0 (Punjab Farm Fire Monitor; data refresh)"}
 
 
-def get(url, tries=3):
+def _urllib(url, context=None):
+    req = urllib.request.Request(url, headers=UA)
+    with urllib.request.urlopen(req, timeout=60, context=context) as r:
+        return r.read()
+
+
+def _curl(url):
+    if not shutil.which("curl"):
+        raise RuntimeError("curl not installed")
+    out = subprocess.run(["curl", "-sSfL", "--max-time", "90", "-A", UA["User-Agent"], "-w", "\n%{http_code}", url],
+                         capture_output=True)
+    if out.returncode == 22 and b"404" in out.stderr:
+        return None
+    if out.returncode != 0:
+        raise RuntimeError(out.stderr.decode(errors="ignore").strip())
+    body, _, code = out.stdout.rpartition(b"\n")
+    return body
+
+
+def get(url, tries=2):
+    """Download a URL. Tries normal HTTPS, then curl, then plain HTTP (some government
+    sites send an incomplete certificate chain that Python rejects). None means 404."""
+    errors = []
+    attempts = [("https", lambda: _urllib(url)), ("curl", lambda: _curl(url))]
+    if url.startswith("https://"):
+        attempts.append(("http", lambda: _urllib("http://" + url[len("https://"):])))
     for k in range(tries):
-        try:
-            req = urllib.request.Request(url, headers=UA)
-            with urllib.request.urlopen(req, timeout=60) as r:
-                return r.read()
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                return None
-            err = e
-        except Exception as e:  # network hiccup: wait and retry
-            err = e
+        for name, fn in attempts:
+            try:
+                return fn()
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    return None
+                errors.append(f"{name}: HTTP {e.code}")
+            except Exception as e:
+                errors.append(f"{name}: {type(e).__name__}: {e}")
         time.sleep(5 * (k + 1))
-    raise RuntimeError(f"Could not download {url}: {err}")
+    raise RuntimeError("; ".join(errors[-3:]))
 
 
 def candidate_urls():
@@ -52,7 +79,7 @@ def candidate_urls():
             if m:
                 urls[m.group(1)] = href
     except Exception as e:
-        print(f"Listing page not reachable ({e}); using file name pattern only")
+        print(f"::warning::Listing page not reachable ({e}); using file name pattern only")
     d, n = SEASON_START, 1
     while d <= min(SEASON_END, date.today()):
         key = d.strftime("%d%b")
@@ -83,7 +110,8 @@ def main():
         except BulletinError as e:
             failed.append(f"{os.path.basename(pdf)}: {e}")
 
-    # 2. CREAMS website
+    # 2. CREAMS website (stops early if the site cannot be reached at all)
+    network_errors = 0
     def iso_of(key):
         return date(2026, time.strptime(key[2:], "%b").tm_mon, int(key[:2])).isoformat()
 
@@ -91,7 +119,16 @@ def main():
         iso = iso_of(key)
         if iso in have and not redo:
             continue
-        body = get(url)
+        try:
+            body = get(url)
+        except RuntimeError as e:
+            network_errors += 1
+            failed.append(f"{url.rsplit('/', 1)[-1]}: could not download ({e})")
+            if network_errors >= 2:
+                failed.append("CREAMS site not reachable from GitHub; stopped trying. Upload PDFs to inbox/ instead.")
+                break
+            continue
+        network_errors = 0
         if body is None:
             continue  # not published yet
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
@@ -107,6 +144,7 @@ def main():
         print("\nBulletins NOT loaded (check needed):")
         for f in failed:
             print(" -", f)
+            print(f"::error::{f}")
         with open(os.path.join(ROOT, "fetch_failures.txt"), "w") as fh:
             fh.write("\n".join(failed))
 
