@@ -42,7 +42,7 @@ h2{font-family:var(--serif);font-weight:500;font-size:22px;margin:0;text-wrap:ba
 #map{display:block;width:100%;height:auto}
 .mapmsg{position:absolute;left:50%;top:6%;transform:translateX(-50%);max-width:80%;text-align:center;font-size:13px;color:var(--ink);background:var(--paper);border:1px solid var(--rule);padding:6px 12px}
 .qd .qb .qtog{color:var(--ink-2);font-size:13px;margin-top:2px}
-.qmore{display:inline}
+.qmore{display:block}.qmore[hidden]{display:none}.qd .qb .qtog{display:block}
 .ctrl{display:flex;align-items:center;gap:12px;margin-top:10px}
 .ctrl input{flex:1;min-width:0;accent-color:var(--fire)}
 .ctrl .d{font-family:var(--serif);font-size:17px;min-width:64px;text-align:right}
@@ -483,29 +483,40 @@ renderTop("dist");
   const b={};fires.forEach(f=>{const k=f.dist+"|"+f.block;b[k]=b[k]||{dist:f.dist,block:f.block,n:0,tot:0};b[k].n++;b[k].tot+=f.frp});
   const B=Object.values(b);B.forEach(d=>d.avg=d.tot/d.n);
   if(!B.length){s.innerHTML="";return}
-  /* Splits: intensity uses the dashboard's fixed "High" mark (fire power 10+); "many fires" means more than the average block with fires */
-  const HI=10, mN=B.reduce((a,d)=>a+d.n,0)/B.length, mI=HI;
-  const Q=d=>(d.avg>=HI?"h":"l")+(d.n>mN?"m":"f");
+  /* Splits at the median block on each axis: a block counts as high only when it is above the median */
+  const med=a=>{const v=[...a].sort((p,q)=>p-q),h=v.length>>1;return v.length%2?v[h]:(v[h-1]+v[h])/2};
+  const mN=med(B.map(d=>d.n)), mI=med(B.map(d=>d.avg));
+  const Q=d=>(d.avg>mI?"h":"l")+(d.n>mN?"m":"f");
   const QD={hm:{t:"High intensity, many fires",c:css("--fire")},
             hf:{t:"High intensity, few fires",c:css("--straw-4")},
             lm:{t:"Low intensity, many fires",c:css("--straw-3")},
             lf:{t:"Low intensity, few fires",c:css("--straw-2")}};
-  const xMax=Math.max(4,Math.max(...B.map(d=>d.n))+1), yMax=Math.max(5,Math.ceil(Math.max(...B.map(d=>d.avg))*1.1/5)*5);
-  const x=v=>m.l+v*(W-m.l-m.r)/xMax, y=v=>H-m.b-v*(H-m.t-m.b)/yMax;
-  const xs=Math.max(1,Math.ceil(xMax/8));
-  for(let v=0;v<=xMax;v+=xs){el("text",{x:x(v),y:H-m.b+16,"text-anchor":"middle"},s).textContent=v}
+  /* Bubble area shows total fire power, scaled to the largest block so nothing outgrows the chart */
+  const maxTot=Math.max(...B.map(d=>d.tot)), RMAX=22, RMIN=3.5;
+  const rad=d=>RMIN+(RMAX-RMIN)*Math.sqrt(d.tot/maxTot);
+  const xMax=Math.max(4,Math.max(...B.map(d=>d.n))), yMax=Math.max(5,Math.ceil(Math.max(...B.map(d=>d.avg))*1.1/5)*5);
+  /* Inner padding keeps edge bubbles inside; the fire axis uses a square-root scale so the many 1 to 5 fire blocks spread out */
+  m.t=42;m.r=66;
+  const pl=m.l+RMAX, pr=W-m.r-RMAX, pt=m.t+8, pb=H-m.b-10;
+  const x=v=>pl+Math.sqrt(Math.max(0,v)/xMax)*(pr-pl), y=v=>pb-v*(pb-pt)/yMax;
+  [0,1,2,3,5,10,20,30,40,50,60,80,100,150,200].filter(v=>v<=xMax).forEach(v=>{
+    el("line",{x1:x(v),x2:x(v),y1:pt,y2:H-m.b,stroke:css("--rule"),"stroke-dasharray":"1 3"},s);
+    el("text",{x:x(v),y:H-m.b+16,"text-anchor":"middle"},s).textContent=v});
   for(let v=0;v<=yMax;v+=5){el("line",{x1:m.l,x2:W-m.r,y1:y(v),y2:y(v),stroke:css("--rule")},s);el("text",{x:m.l-8,y:y(v)+4,"text-anchor":"end"},s).textContent=v}
-  el("line",{x1:m.l,x2:W-m.r,y1:y(0),y2:y(0),stroke:css("--ink-2")},s);
+  el("line",{x1:m.l,x2:W-m.r,y1:H-m.b,y2:H-m.b,stroke:css("--ink-2")},s);
   el("text",{x:(m.l+W-m.r)/2,y:H-6,"text-anchor":"middle",class:"strong"},s).textContent="Number of fires";
   el("text",{x:14,y:(m.t+H-m.b)/2,"text-anchor":"middle",class:"strong",transform:`rotate(-90 14 ${(m.t+H-m.b)/2})`},s).textContent="Fire power per fire (average)";
-  /* Median split lines */
-  el("line",{x1:x(mN),x2:x(mN),y1:m.t,y2:H-m.b,stroke:css("--ink"),"stroke-dasharray":"4 4","stroke-width":1},s);
+  /* Median split lines, each labelled with its value */
+  el("line",{x1:x(mN),x2:x(mN),y1:m.t-8,y2:H-m.b,stroke:css("--ink"),"stroke-dasharray":"4 4","stroke-width":1},s);
   el("line",{x1:m.l,x2:W-m.r,y1:y(mI),y2:y(mI),stroke:css("--ink"),"stroke-dasharray":"4 4","stroke-width":1},s);
-  const ql=(tx,ty,anc,k)=>{const e=el("text",{x:tx,y:ty,"text-anchor":anc,style:`fill:${k==="hm"?QD[k].c:css("--ink-2")};font-weight:600;font-size:12px`},s);e.textContent=QD[k].t};
-  ql(x(mN)-8,m.t+14,"end","hf");ql(W-m.r-4,m.t+14,"end","hm");ql(x(mN)-8,y(mI)+16,"end","lf");ql(W-m.r-4,y(mI)+16,"end","lm");
-  /* Bubbles: blocks with the same count can sit on top of each other, so overlapping bubbles are
-     nudged sideways a little (never more than a third of one fire step) */
-  const rad=d=>4+Math.sqrt(d.tot)*2.6, step=x(1)-x(0);
+  const fmt=v=>Number.isInteger(v)?String(v):v.toFixed(1);
+  el("text",{x:x(mN),y:m.t-11,"text-anchor":"middle",style:"font-size:10.5px"},s).textContent=`Median: ${fmt(mN)} fire${mN==1?"":"s"}`;
+  el("text",{x:W-2,y:y(mI)-4,"text-anchor":"end",style:"font-size:10.5px"},s).textContent=`Median: ${mI.toFixed(1)}`;
+  const ql=(tx,ty,anc,k,two)=>{const e=el("text",{x:tx,y:ty,"text-anchor":anc,style:`fill:${k==="hm"?QD[k].c:css("--ink-2")};font-weight:600;font-size:11.5px`},s);
+    if(two){const [a,b]=QD[k].t.split(", ");el("tspan",{x:tx,dy:0},e).textContent=a+",";el("tspan",{x:tx,dy:13},e).textContent=b}else e.textContent=QD[k].t};
+  /* Quadrant names sit outside the plot: top corners for high intensity, bottom corners for low */
+  ql(m.l,14,"start","hf");ql(W-m.r,14,"end","hm");ql(m.l,H-6,"start","lf");ql(W-m.r,H-6,"end","lm");
+  const step=x(1)-x(0);
   const placed=[];
   [...B].sort((p,q)=>q.tot-p.tot).forEach(d=>{
     const r=rad(d), py=y(d.avg); let px=x(d.n);
@@ -523,7 +534,7 @@ renderTop("dist");
      right, left, above or below wherever it does not collide; the rest show on hover */
   const boxes=placed.map(p=>({x1:p.px-p.r,x2:p.px+p.r,y1:p.py-p.r,y2:p.py+p.r}));
   const hit=b=>b.x1<m.l||b.x2>W-m.r||b.y1<m.t||b.y2>H-m.b||boxes.some(o=>b.x1<o.x2&&b.x2>o.x1&&b.y1<o.y2&&b.y2>o.y1);
-  const want=placed.filter((p,i)=>i<10||Q(p.d)==="hm");
+  const want=placed.filter((p,i)=>i<8||Q(p.d)==="hm");
   want.forEach(p=>{
     const txt=title(p.d.block), w=txt.length*6.1, h=12;
     const opts=[[p.px+p.r+4,p.py-h/2,"start"],[p.px-p.r-4-w,p.py-h/2,"start"],[p.px-w/2,p.py-p.r-3-h,"start"],[p.px-w/2,p.py+p.r+3,"start"]];
@@ -534,9 +545,9 @@ renderTop("dist");
   document.getElementById("mxSide").innerHTML=["hm","hf","lm","lf"].map(k=>{
     const list=B.filter(d=>Q(d)===k).sort((p,q)=>q.tot-p.tot);
     const item=d=>`<button type="button" data-d="${d.dist}" data-b="${d.block}">${title(d.block)}</button> <span class="sub">${title(d.dist)}</span>`;
-    const more=list.length>8?`<div class="qmore" hidden>${list.slice(8).map(item).join("<br>")}</div><button type="button" class="qtog">+ ${list.length-8} more</button>`:"";
-    return `<div class="qd"><div class="qt"><span class="sw2" style="background:${QD[k].c}"></span>${QD[k].t}</div><div class="qb">${list.length?list.slice(0,8).map(item).join("<br>")+more:`<span class="sub">None</span>`}</div></div>`}).join("");
-  document.querySelectorAll("#mxSide .qtog").forEach(bt=>bt.onclick=()=>{const mo=bt.previousElementSibling;mo.hidden=!mo.hidden;bt.textContent=mo.hidden?`+ ${mo.querySelectorAll("button").length} more`:"Show fewer"});
+    const more=list.length>5?`<div class="qmore" hidden>${list.slice(5).map(item).join("<br>")}</div><button type="button" class="qtog">+ ${list.length-5} more</button>`:"";
+    return `<div class="qd"><div class="qt"><span class="sw2" style="background:${QD[k].c}"></span>${QD[k].t}</div><div class="qb">${list.length?list.slice(0,5).map(item).join("<br>")+more:`<span class="sub">None</span>`}</div></div>`}).join("");
+  document.querySelectorAll("#mxSide .qtog").forEach(bt=>bt.onclick=()=>{const mo=bt.previousElementSibling;mo.hidden=!mo.hidden;bt.textContent=mo.hidden?`+ ${mo.querySelectorAll("button[data-d]").length} more`:"Show fewer"});
   document.querySelectorAll("#mxSide button[data-d]").forEach(bt=>bt.onclick=()=>{openDist(bt.dataset.d,bt.dataset.b);document.getElementById("map").scrollIntoView({behavior:"smooth",block:"start"})});
   document.getElementById("mxSub").textContent=COMPLETE?`${B.length} blocks with fires · 15 Sep to ${lastLbl}`:`${B.length} blocks with fires · ${DAYS.size} daily bulletin${DAYS.size>1?"s":""} loaded`;
   /* explanatory note removed at review */ void `Bubble size shows total fire power (number of fires × fire power per fire). Dashed lines: fire power of 10 or more counts as high intensity (the same "High" mark used elsewhere on the dashboard); more fires than the average block (${mN.toFixed(1)}) counts as many. Click a bubble or name to see its fires. Covers the bulletins loaded so far; season totals by block build up as each daily bulletin is added.`;
