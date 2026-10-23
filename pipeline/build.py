@@ -29,8 +29,12 @@ def build():
     fires, warnings = [], []
     prev = None
     for b in bulletins:
+        known_names = {r["n"] for r in b["dist"]}
         for f in b["fires"]:
             f["dist"] = district_name(f["dist"])
+            # CREAMS occasionally swaps the district and block columns (e.g. "FATEHGARH CHURIAN" / "GURDASPUR")
+            if f["dist"] not in known_names and district_name(f["block"]) in known_names:
+                f["dist"], f["block"] = district_name(f["block"]), f["dist"]
             fires.append({**f, "d": b["d"]})
         known = {r["n"] for r in b["dist"]}
         for n in sorted({f["dist"] for f in b["fires"]} - known):
