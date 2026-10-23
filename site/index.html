@@ -209,16 +209,21 @@ const title=s=>s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()).replace("Sas 
 /* Daily brief */
 (function(){
   const t=daily[last].v["2026"], y=daily[last-1].v["2026"], s26=C26[last], s25=C25[last], p=pct(s26,s25);
+  /* Blocks with at least one located fire on the latest day, and the block with the most.
+     154 = blocks in the PRSC block list. District added only when its name differs from the block's. */
+  const NBLOCKS=154;
   const b={};firesOn(last).forEach(f=>{const k=f.dist+"|"+f.block;b[k]=b[k]||{n:0,d:f.dist,bl:f.block};b[k].n++});
-  const vals=Object.values(b), mx=vals.length?Math.max(...vals.map(v=>v.n)):0;
+  const vals=Object.values(b), nb=vals.length, mx=nb?Math.max(...vals.map(v=>v.n)):0;
   const tops=vals.filter(v=>v.n===mx);
-  const topTxt=tops.length?tops.slice(0,2).map(v=>title(v.bl)).join(" and ")+", "+title(tops[0].d)+(tops.length>2?` and ${tops.length-2} more`:""):"No fires today";
+  const blkName=v=>{const bn=title(v.bl), dn=(D.map.find(m=>m.key===v.d)||{}).name||title(v.d);
+    return bn.toLowerCase()===dn.toLowerCase()?`${bn} block`:`${bn} block (${dn})`};
+  const spreadTxt=nb?`of ${NBLOCKS} · most in ${tops.slice(0,2).map(blkName).join(" and ")}${tops.length>2?` and ${tops.length-2} more`:""}, ${mx} fire${mx>1?"s":""}${tops.length>1?" each":""}`:`of ${NBLOCKS} · no fire locations published yet`;
   const diff=t-y;
   const figs=[
     ["Fires today",t,`<span class="${diff>0?"worse":"better"}">${diff>0?"+":""}${diff}</span> vs yesterday (${y})`],
     ["Season to date",s26,`15 Sep to ${lastLbl} 2026`],
     ["Vs 2025, same dates",`<span class="${p>0?"worse":"better"}">${p>0?"+":""}${p}%</span>`,`${s25} fires by this date in 2025`],
-    ["Top block today",mx,`${topTxt}`]
+    ["Blocks affected today",nb,spreadTxt]
   ];
   document.getElementById("brief").innerHTML=figs.map(([l,n,s])=>`<div class="fig"><div class="lab">${l}</div><div class="num">${n}</div><div class="sub">${s}</div></div>`).join("");
 })();
