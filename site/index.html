@@ -80,6 +80,8 @@ footer{margin-top:44px;padding-top:12px;border-top:1px solid var(--rule);font-si
 #dpanel a{color:var(--cool)}
 .dl{margin:0 0 18px;background:var(--ink);color:var(--paper)}
 .dl:hover{background:var(--fire);border-color:var(--fire)}
+.listtools{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.dl.dlsm{margin:0}
 .dlmsg{font-size:13px;color:var(--ink-2);margin:-10px 0 16px}
 .mxwrap{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:32px;align-items:start}
 .qd{padding:10px 0;border-bottom:1px solid var(--rule)}
@@ -172,7 +174,8 @@ footer{margin-top:44px;padding-top:12px;border-top:1px solid var(--rule);font-si
 
   <section class="more" aria-labelledby="listH">
     <div class="head"><h2 id="listH">Fires detected · <span id="listDate">07 Oct</span></h2>
-      <label class="sub">District <select id="fDist"></select></label></div>
+      <div class="listtools"><label class="sub">District <select id="fDist"></select></label><button type="button" class="dl dlsm" id="stBtn" hidden>Download Punjab report (PDF)</button></div></div>
+    <p class="dlmsg" id="stMsg" hidden></p>
     <div class="scroll"><table id="list"></table></div>
   </section>
 
@@ -423,12 +426,102 @@ async function buildReport(key,idx){
   doc.text(doc.splitTextToSize(`Source: CREAMS Lab, ICAR-IARI, paddy residue burning bulletin for ${date}. Locations are satellite detections (VIIRS / MODIS); please confirm each fire on the ground. Fire power marked High where 10 or above.`,R-L),L,y);
   return {blob:doc.output("blob"),filename:`${name.replace(/[^A-Za-z]+/g,"_")}_Fire_Report_${daily[idx].d.replace("-","")}2026.pdf`};
 }
-async function downloadReport(key,idx){
-  const btn=document.getElementById("dlBtn"),msg=document.getElementById("dlMsg");
+/* Punjab state report (PDF) for the selected day: map of all fires, district table, then every fire grouped by district */
+async function buildStateReport(idx){
+  const {jsPDF}=await loadJsPDF();
+  const doc=new jsPDF({unit:"mm",format:"a4"});
+  const INK=hexRGB(css("--ink")),INK2=hexRGB(css("--ink-2")),RULE=hexRGB(css("--rule")),FIRE=hexRGB(css("--fire")),COOL=hexRGB(css("--cool")),PAPER=hexRGB(css("--paper")),STRAW=hexRGB(css("--straw-1"));
+  const date=fullDate(daily[idx].d), fs=firesOn(idx), dayTotal=daily[idx].v["2026"];
+  let season=0;for(let i=0;i<=idx;i++)season+=daily[i].v["2026"];
+  const byD={};fs.forEach(f=>{(byD[f.dist]=byD[f.dist]||[]).push(f)});
+  const upTo={};firesUpTo(idx).forEach(f=>{upTo[f.dist]=(upTo[f.dist]||0)+1});
+  const seasonOf=k=>idx===last?(c26[k]||0):(upTo[k]||0);
+  const dists=Object.entries(byD).sort((a,b)=>b[1].length-a[1].length||a[0].localeCompare(b[0]));
+  const nameOf=k=>(D.map.find(m=>m.key===k)||{}).name||title(k);
+  const L=12,R=198,gen=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+  /* Masthead */
+  doc.setFont("helvetica","normal");doc.setFontSize(7.5);doc.setTextColor(...INK2);
+  doc.text("PUNJAB FARM FIRE MONITOR  \u00b7  STATE FIELD REPORT",L,16,{charSpace:.35});
+  doc.setFont("times","bold");doc.setFontSize(24);doc.setTextColor(...INK);doc.text("Punjab",L,26);
+  doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(...INK2);
+  doc.text("Fires detected on "+date,R,21,{align:"right"});doc.text("Generated "+gen,R,25.5,{align:"right"});
+  doc.setDrawColor(...INK);doc.setLineWidth(.6);doc.line(L,29,R,29);
+  /* State map: every district outline, that day's fires as dots clipped to the Punjab border */
+  const bx=L,by=35,bw=84,bh=90;
+  doc.setFillColor(...PAPER);doc.rect(bx,by,bw,bh,"F");
+  const ringsOf=d=>d.split("M").filter(Boolean).map(s=>s.replace(/Z/g,"").split("L").map(p=>p.split(",").map(Number)));
+  const all=ringsOf(D.outline).flat(),xs=all.map(p=>p[0]),ys=all.map(p=>p[1]);
+  const mnx=Math.min(...xs),mxx=Math.max(...xs),mny=Math.min(...ys),mxy=Math.max(...ys);
+  const sc=Math.min((bw-6)/(mxx-mnx),(bh-6)/(mxy-mny)),ox=bx+(bw-(mxx-mnx)*sc)/2,oy=by+(bh-(mxy-mny)*sc)/2;
+  const tp=([x,y])=>[ox+(x-mnx)*sc,oy+(y-mny)*sc];
+  const ring=(r,style)=>{const p=r.map(tp);const d=p.slice(1).map((q,i)=>[q[0]-p[i][0],q[1]-p[i][1]]);doc.lines(d,p[0][0],p[0][1],[1,1],style,true)};
+  doc.setLineWidth(.15);doc.setDrawColor(...INK2);
+  D.map.forEach(m=>{doc.setFillColor(...(byD[m.key]?STRAW:PAPER));ringsOf(m.d).forEach(r=>ring(r,"FD"))});
+  doc.saveGraphicsState();ringsOf(D.outline).forEach(r=>ring(r,null));doc.clip();doc.discardPath();
+  doc.setFillColor(...FIRE);doc.setDrawColor(255,255,255);doc.setLineWidth(.15);
+  fs.forEach(f=>{const [x,y]=tp(proj(f.lon,f.lat));doc.circle(x,y,f.frp>=10?1.5:1.05,"FD")});
+  doc.restoreGraphicsState();
+  doc.setDrawColor(...INK);doc.setLineWidth(.35);ringsOf(D.outline).forEach(r=>ring(r,"S"));
+  /* Figures */
+  const fx=104,fw=(R-fx)/3;
+  doc.setDrawColor(...RULE);doc.setLineWidth(.25);doc.line(fx,35,R,35);doc.line(fx,57,R,57);doc.line(fx+fw,35,fx+fw,57);doc.line(fx+2*fw,35,fx+2*fw,57);
+  doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(...INK2);
+  [["FIRES ON "+daily[idx].d.replace("-"," ").toUpperCase(),dayTotal],["SEASON TO DATE",season],["DISTRICTS AFFECTED",dists.length]].forEach(([lab,v],i)=>{
+    doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(...INK2);doc.text(lab,fx+i*fw+(i?3:0),40,{charSpace:.25});
+    doc.setFont("times","normal");doc.setFontSize(24);doc.setTextColor(...INK);doc.text(String(v),fx+i*fw+(i?3:0),52)});
+  let ty=62;
+  if(fs.length!==dayTotal){doc.setFont("helvetica","normal");doc.setFontSize(7.5);doc.setTextColor(...INK2);
+    doc.text(doc.splitTextToSize(`CREAMS has published locations for ${fs.length} of these ${dayTotal} fires.`,R-fx),fx,ty);ty+=6}
+  /* District table */
+  doc.setFont("times","bold");doc.setFontSize(12.5);doc.setTextColor(...INK);doc.text("Fires by district",fx,ty+4);ty+=10;
+  doc.setFont("helvetica","normal");doc.setFontSize(6.8);doc.setTextColor(...INK2);
+  doc.text("DISTRICT",fx,ty,{charSpace:.25});doc.text("ON "+daily[idx].d.replace("-"," ").toUpperCase(),R-22,ty,{align:"right",charSpace:.25});doc.text("SEASON",R,ty,{align:"right",charSpace:.25});
+  ty+=1.5;doc.setDrawColor(...INK);doc.setLineWidth(.3);doc.line(fx,ty,R,ty);ty+=4.2;
+  const maxRows=Math.floor((by+bh-ty)/4.6);
+  const shown=dists.slice(0,maxRows);
+  doc.setFontSize(8.5);
+  shown.forEach(([k,l])=>{doc.setTextColor(...INK);doc.text(nameOf(k),fx,ty);doc.text(String(l.length),R-22,ty,{align:"right"});doc.setTextColor(...INK2);doc.text(String(seasonOf(k)),R,ty,{align:"right"});
+    doc.setDrawColor(...RULE);doc.setLineWidth(.15);doc.line(fx,ty+1.4,R,ty+1.4);ty+=4.6});
+  if(dists.length>shown.length){doc.setFontSize(7.5);doc.setTextColor(...INK2);doc.text(`+ ${dists.length-shown.length} more districts, listed below`,fx,ty)}
+  if(!fs.length){doc.setFontSize(9);doc.setTextColor(...INK2);doc.text("No fire locations published for this day.",fx,ty)}
+  /* Every fire, grouped by district */
+  let y=by+bh+12, n=0;
+  const cols={no:L,blk:L+10,pw:124,loc:130};
+  const head=()=>{doc.setFont("times","bold");doc.setFontSize(13);doc.setTextColor(...INK);doc.text("Fires detected",L,y);y+=7;
+    doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(...INK2);
+    doc.text("#",cols.no,y,{charSpace:.3});doc.text("BLOCK",cols.blk,y,{charSpace:.3});doc.text("FIRE POWER",cols.pw,y,{align:"right",charSpace:.3});doc.text("LOCATION",cols.loc,y,{charSpace:.3});
+    y+=2;doc.setDrawColor(...INK);doc.setLineWidth(.35);doc.line(L,y,R,y);y+=5};
+  head();
+  dists.forEach(([k,l])=>{
+    if(y>270){doc.addPage();y=18;head()}
+    doc.setFont("helvetica","bold");doc.setFontSize(9.5);doc.setTextColor(...INK);doc.text(`${nameOf(k)}  (${l.length})`,L,y);y+=6;
+    [...l].sort((a,b)=>a.block.localeCompare(b.block)||b.frp-a.frp).forEach(f=>{
+      if(y>278){doc.addPage();y=18;head()}
+      n++;doc.setFont("helvetica","bold");doc.setFontSize(9.5);doc.setTextColor(...FIRE);doc.text(String(n),cols.no,y);
+      doc.setFont("helvetica","normal");doc.setTextColor(...INK);doc.text(title(f.block),cols.blk,y);
+      doc.text(f.frp.toFixed(1),cols.pw-(f.frp>=10?11:0),y,{align:"right"});
+      if(f.frp>=10){doc.setFillColor(...FIRE);doc.rect(cols.pw-9.5,y-3,9.5,3.8,"F");doc.setFont("helvetica","bold");doc.setFontSize(6.5);doc.setTextColor(255,255,255);doc.text("High",cols.pw-4.75,y-.3,{align:"center"})}
+      doc.setFont("helvetica","normal");doc.setFontSize(9.5);doc.setTextColor(...COOL);
+      doc.textWithLink("Open map",cols.loc,y,{url:`https://www.google.com/maps?q=${f.lat},${f.lon}`});
+      const w=doc.getTextWidth("Open map");doc.setDrawColor(...COOL);doc.setLineWidth(.2);doc.line(cols.loc,y+.7,cols.loc+w,y+.7);
+      doc.setFontSize(7.5);doc.setTextColor(...INK2);doc.text(`${f.lat.toFixed(5)}, ${f.lon.toFixed(5)}`,cols.loc+w+4,y);
+      y+=3;doc.setDrawColor(...RULE);doc.setLineWidth(.2);doc.line(L,y,R,y);y+=4.6;
+    });
+    y+=2;
+  });
+  if(y>280){doc.addPage();y=18}
+  y+=2;doc.setDrawColor(...RULE);doc.line(L,y,R,y);y+=4;
+  doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(...INK2);
+  doc.text(doc.splitTextToSize(`Source: CREAMS Lab, ICAR-IARI, paddy residue burning bulletin for ${date}. Locations are satellite detections (VIIRS / MODIS); please confirm each fire on the ground. Fire power marked High where 10 or above.`,R-L),L,y);
+  const pages=doc.getNumberOfPages();for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(7);doc.setTextColor(...INK2);doc.text(`Page ${i} of ${pages}`,R,290,{align:"right"})}
+  return {blob:doc.output("blob"),filename:`Punjab_Fire_Report_${daily[idx].d.replace("-","")}2026.pdf`};
+}
+async function downloadReport(key,idx,btnId="dlBtn",msgId="dlMsg"){
+  const btn=document.getElementById(btnId),msg=document.getElementById(msgId);
   const say=t=>{if(msg){msg.textContent=t;msg.hidden=!t}};
   btn.disabled=true;say("Preparing report...");
   try{
-    const {blob,filename}=await buildReport(key,idx);
+    const {blob,filename}=key==="__STATE__"?await buildStateReport(idx):await buildReport(key,idx);
     if(dlCap){await dlCap.save({filename,data:blob});say("")}
     else{const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);say("")}
   }catch(e){
@@ -599,6 +692,10 @@ function sync(){
   const idx=+slider.value, lbl=daily[idx].d, have=hasDay(idx);
   document.getElementById("listDate").textContent=lbl;
   const sel=document.getElementById("fDist");
+  const sb=document.getElementById("stBtn");
+  if(sb){dlReady.then(ok=>{const any=have&&firesOn(idx).length>0;sb.hidden=!(ok&&any);
+    sb.textContent=sel.value?`Download ${(D.map.find(m=>m.key===sel.value)||{}).name||title(sel.value)} report (PDF)`:"Download Punjab report (PDF)";
+    sb.onclick=()=>downloadReport(sel.value||"__STATE__",idx,"stBtn","stMsg")});}
   const rows=have?firesOn(idx):[];
   const ds=[...new Set(rows.map(f=>f.dist))];const cur=sel.value;
   sel.innerHTML=`<option value="">All (${rows.length})</option>`+ds.map(d=>`<option value="${d}">${title(d)}</option>`).join("");
