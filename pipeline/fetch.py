@@ -56,6 +56,18 @@ def get(url, tries=2):
     attempts = [("https", lambda: _urllib(url)), ("curl", lambda: _curl(url))]
     if url.startswith("https://"):
         attempts.append(("http", lambda: _urllib("http://" + url[len("https://"):])))
+    # Last resort, CREAMS only: if the site's security certificate has expired or is broken, read
+    # the public bulletin without checking the certificate. Every bulletin still has to pass the
+    # count checks in read_bulletin.py before it is used, and the run logs a warning each time.
+    if urllib.parse.urlparse(url).hostname == "creams.iari.res.in":
+        def _unverified():
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            body = _urllib(url, context=ctx)
+            print(f"::warning::CREAMS certificate could not be verified; downloaded without the check: {url.rsplit('/', 1)[-1]}")
+            return body
+        attempts.append(("unverified", _unverified))
     for k in range(tries):
         for name, fn in attempts:
             try:
