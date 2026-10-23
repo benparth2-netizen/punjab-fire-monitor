@@ -59,7 +59,7 @@ h2{font-family:var(--serif);font-weight:500;font-size:22px;margin:0;text-wrap:ba
 .note{font-size:13px;color:var(--ink-2);margin:10px 0 0;max-width:68ch}
 
 section.more{margin-top:44px;padding-top:16px;border-top:2px solid var(--ink)}
-.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:40px}
+.two{display:grid;grid-template-columns:minmax(0,760px);gap:40px}
 .scroll{overflow-x:auto}
 table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
 th{text-align:left;font-weight:500;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);padding:8px 10px;border-bottom:1px solid var(--ink)}
@@ -152,11 +152,6 @@ footer{margin-top:44px;padding-top:12px;border-top:1px solid var(--rule);font-si
       <div>
         <div class="head"><h2>Season race: 2026 vs 2025</h2></div>
         <svg id="race" viewBox="0 0 560 300" width="100%" role="img" aria-label="Cumulative fires by date, 2026 and 2025"></svg>
-      </div>
-      <div>
-        <div class="head"><h2>Fire intensity · <span id="intDate">07 Oct</span></h2></div>
-        <svg id="int" viewBox="0 0 560 300" width="100%" role="img" aria-label="Fire power of each fire detected on the selected date"></svg>
-        <p class="note">Fire power (W/m²) of each detected fire. Higher values usually mean more residue burning at once.</p>
       </div>
     </div>
   </section>
@@ -585,9 +580,9 @@ slider.max=last;slider.value=last;
 /* Season race */
 (function(){
   const s=document.getElementById("race");const W=560,H=300,m={l:40,r:84,t:12,b:28};
-  const mx=Math.max(C25[last],C26[last]);const yMax=Math.ceil(mx/25)*25;
+  const mx=Math.max(C25[last],C26[last]);const st=[25,50,100,200,250,500,1000,2000,2500,5000,10000].find(v=>mx/v<=7)||20000;const yMax=Math.ceil(mx/st)*st;
   const x=i=>m.l+i*(W-m.l-m.r)/last, y=v=>H-m.b-v*(H-m.t-m.b)/yMax;
-  for(let v=0;v<=yMax;v+=25){el("line",{x1:m.l,x2:W-m.r,y1:y(v),y2:y(v),stroke:css("--rule")},s);el("text",{x:m.l-6,y:y(v)+4,"text-anchor":"end"},s).textContent=v}
+  for(let v=0;v<=yMax;v+=st){el("line",{x1:m.l,x2:W-m.r,y1:y(v),y2:y(v),stroke:css("--rule")},s);el("text",{x:m.l-6,y:y(v)+4,"text-anchor":"end"},s).textContent=v}
   [0,7,15,last].forEach(i=>el("text",{x:x(i),y:H-8,"text-anchor":"middle"},s).textContent=daily[i].d);
   [[C25,css("--ink-2"),"2025",2],[C26,css("--fire"),"2026",3]].forEach(([c,col,lab,w])=>{
     el("path",{d:c.map((v,i)=>(i?"L":"M")+x(i).toFixed(1)+","+y(v).toFixed(1)).join(""),fill:"none",stroke:col,"stroke-width":w},s);
@@ -602,17 +597,7 @@ slider.max=last;slider.value=last;
 function sync(){
   renderDist();
   const idx=+slider.value, lbl=daily[idx].d, have=hasDay(idx);
-  document.getElementById("intDate").textContent=lbl;document.getElementById("listDate").textContent=lbl;
-  const s=document.getElementById("int");s.innerHTML="";
-  if(!have){el("text",{x:280,y:150,"text-anchor":"middle"},s).textContent="Loads when this day's bulletin is added";}
-  else{
-    const W=560,H=300,m={l:36,r:10,t:12,b:30};const f=[...firesOn(idx)].sort((a,b)=>a.frp-b.frp);
-    if(!f.length){el("text",{x:280,y:150,"text-anchor":"middle"},s).textContent=`No fires detected on ${lbl}`}else{
-    const mx=Math.ceil(Math.max(...f.map(d=>d.frp))/5)*5;const bw=(W-m.l-m.r)/f.length;const y=v=>H-m.b-v*(H-m.t-m.b)/mx;
-    for(let v=0;v<=mx;v+=5){el("line",{x1:m.l,x2:W-m.r,y1:y(v),y2:y(v),stroke:css("--rule")},s);el("text",{x:m.l-6,y:y(v)+4,"text-anchor":"end"},s).textContent=v}
-    f.forEach((d,i)=>{const r=el("rect",{x:m.l+i*bw+2,y:y(d.frp),width:bw-4,height:y(0)-y(d.frp),fill:d.frp>=10?css("--fire"):css("--straw-3")},s);el("title",{},r).textContent=`${title(d.block)}, ${title(d.dist)}: ${d.frp} W/m²`});
-    el("text",{x:(W+m.l)/2,y:H-8,"text-anchor":"middle"},s).textContent=`Each bar is one fire (${f.length}), sorted by fire power`;}
-  }
+  document.getElementById("listDate").textContent=lbl;
   const sel=document.getElementById("fDist");
   const rows=have?firesOn(idx):[];
   const ds=[...new Set(rows.map(f=>f.dist))];const cur=sel.value;
